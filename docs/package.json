@@ -1,0 +1,17 @@
+{
+  "name": "@backone-monorepo/docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsone dev",
+    "build": "tsone build",
+    "build:pages": "TSONE_BASE_PATH=/backone/ tsone build",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@geektech/tsone": "^0.5.1"
+  },
+  "devDependencies": {
+    "@geektech/tsone-cli": "^1.0.0"
+  }
+}

@@ -15,6 +15,15 @@
         "typescript": "^5.3.3",
       },
     },
+    "docs": {
+      "name": "@backone-monorepo/docs",
+      "dependencies": {
+        "@geektech/tsone": "^0.5.1",
+      },
+      "devDependencies": {
+        "@geektech/tsone-cli": "^1.0.0",
+      },
+    },
     "packages/backone": {
       "name": "@geektech/backone",
       "version": "0.1.0",
@@ -39,6 +48,8 @@
     },
   },
   "packages": {
+    "@backone-monorepo/docs": ["@backone-monorepo/docs@workspace:docs"],
+
     "@backone-playground/demo": ["@backone-playground/demo@workspace:playground/backone-demo"],
 
     "@eslint-community/eslint-utils": ["@eslint-community/eslint-utils@4.10.1", "", { "dependencies": { "eslint-visitor-keys": "^3.4.3" }, "peerDependencies": { "eslint": "^6.0.0 || ^7.0.0 || >=8.0.0" } }, "sha512-cuadcxVFE8sDK6iWJbs8Sn0av2Nrh2QSGQhVlBW9AaAHqHwjWsZHT8LJ4hFGPh7ASBV2deFdM7H/DPjulmh8rg=="],
@@ -54,6 +65,10 @@
     "@geektech/backone-cli": ["@geektech/backone-cli@workspace:packages/backone-cli"],
 
     "@geektech/backone-utils": ["@geektech/backone-utils@workspace:packages/backone-utils"],
+
+    "@geektech/tsone": ["@geektech/tsone@0.5.1", "", {}, "sha512-b9aEf5HyLcKUMZ7JK0aOwKJBC4z/JdPf4Dbor5+IJyGdv1jWqf1lKdAnNDw52mRwZmRvxrLZ9uw9k25lUBm36A=="],
+
+    "@geektech/tsone-cli": ["@geektech/tsone-cli@1.0.0", "", { "dependencies": { "@geektech/tsone": "0.5.1", "typescript": "^5.3.3" }, "bin": { "tsone": "bin/tsone.ts" } }, "sha512-S10cxWza4K2IYFlidHkHlXrvyh5oV2hcNm+2Tx1LGckyiVxBwWDXqreOdm0rg57uD/RSwwgLWpmuIVo/mStNwQ=="],
 
     "@humanwhocodes/config-array": ["@humanwhocodes/config-array@0.13.0", "", { "dependencies": { "@humanwhocodes/object-schema": "^2.0.3", "debug": "^4.3.1", "minimatch": "^3.0.5" } }, "sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw=="],
 
