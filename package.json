@@ -1,0 +1,33 @@
+{
+  "name": "backone-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "playground/*"
+  ],
+  "scripts": {
+    "dev": "bun run --cwd playground/backone-demo dev",
+    "build": "bun run --cwd packages/backone build && bun run --cwd packages/backone-utils build && bun run --cwd packages/backone-cli build",
+    "build:backone": "bun run --cwd packages/backone build",
+    "build:backone-utils": "bun run --cwd packages/backone-utils build",
+    "build:backone-cli": "bun run --cwd packages/backone-cli build",
+    "build:types": "bun run --cwd packages/backone build:types && bun run --cwd packages/backone-utils build:types && bun run --cwd packages/backone-cli build:types",
+    "lint": "bun run --cwd packages/backone lint && bun run --cwd packages/backone-utils lint && bun run --cwd packages/backone-cli lint",
+    "format": "prettier --write . --ignore-path .gitignore",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
+  }
+}

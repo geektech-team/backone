@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BackOne playground</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+          sans-serif;
+        background: #0f1514;
+        color: #e2ece9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      main {
+        text-align: center;
+      }
+      h1 {
+        color: #2dd4bf;
+        margin: 0 0 12px;
+      }
+      p {
+        margin: 8px 0;
+        color: #8ba09b;
+      }
+      a {
+        color: #5eead4;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>BackOne</h1>
+      <p>这个页面由 serveStatic 提供，基于 Bun.file 零拷贝流式发送。</p>
+      <p>
+        <a href="/json">/json</a> · <a href="/hello/playground">/hello/:name</a>
+        · <a href="/events">/events</a>
+      </p>
+    </main>
+  </body>
+</html>

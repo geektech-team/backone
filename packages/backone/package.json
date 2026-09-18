@@ -1,0 +1,56 @@
+{
+  "name": "@geektech/backone",
+  "version": "0.1.0",
+  "description": "BackOne 是基于 Bun 的轻量级纯 TypeScript 服务端框架，零运行时依赖，提供路由、中间件、上下文与静态文件服务",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "build:types": "bunx tsc --project tsconfig.build.json",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write . --ignore-path .gitignore",
+    "test": "bun test",
+    "bench": "bun scripts/bench.ts"
+  },
+  "keywords": [
+    "typescript",
+    "backend",
+    "server",
+    "framework",
+    "bun",
+    "http",
+    "router"
+  ],
+  "author": "Jimmie Max(Qianyu)",
+  "homepage": "https://github.com/geektech-team/backone",
+  "bugs": {
+    "url": "https://github.com/geektech-team/backone/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geektech-team/backone.git",
+    "directory": "packages/backone"
+  },
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README-zh.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

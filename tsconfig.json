@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2020"],
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@geektech/backone": ["packages/backone/lib/index.ts"],
+      "@geektech/backone-cli": ["packages/backone-cli/src/index.ts"],
+      "@geektech/backone-utils": ["packages/backone-utils/lib/index.ts"]
+    },
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "packages/backone/lib",
+    "packages/backone/tests",
+    "packages/backone/scripts",
+    "packages/backone-cli/src",
+    "packages/backone-cli/tests",
+    "packages/backone-utils/lib",
+    "playground/backone-demo/src"
+  ],
+  "exclude": [
+    "node_modules",
+    "packages/*/node_modules",
+    "packages/*/dist",
+    "coverage"
+  ]
+}
