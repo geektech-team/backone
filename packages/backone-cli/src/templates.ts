@@ -48,7 +48,7 @@ function packageJson(
         start: 'bun src/index.ts',
       },
       dependencies: {
-        '@geektech/backone': '^0.1.1',
+        '@geektech/backone': '^0.1.2',
       },
       ...extra,
     },

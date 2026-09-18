@@ -643,16 +643,74 @@ export const docsStyles: StyleSheet = [
     atRule: '@media (max-width: 960px)',
     rules: [
       {
+        selector: '.docs-layout',
+        properties: {
+          flexDirection: 'column',
+        },
+      },
+      {
         selector: '.docs-sidebar',
         properties: {
+          borderBottom: '1px solid var(--docs-border)',
+          borderRight: 'none',
+          bottom: 'auto',
+          display: 'block',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          padding: '10px 16px',
+          position: 'static',
+          top: 'auto',
+          width: 'auto',
+        },
+      },
+      {
+        selector: '.docs-search',
+        properties: {
           display: 'none',
+        },
+      },
+      {
+        selector: '.docs-nav',
+        properties: {
+          display: 'flex',
+          gap: '4px',
+        },
+      },
+      {
+        selector: '.docs-nav-section',
+        properties: {
+          alignItems: 'center',
+          display: 'flex',
+          gap: '6px',
+          marginBottom: 0,
+          paddingRight: '12px',
+        },
+      },
+      {
+        selector: '.docs-nav-heading',
+        properties: {
+          marginBottom: 0,
+          whiteSpace: 'nowrap',
+        },
+      },
+      {
+        selector: '.docs-nav-pkg',
+        properties: {
+          display: 'none',
+        },
+      },
+      {
+        selector: '.docs-nav-item',
+        properties: {
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
         },
       },
       {
         selector: '.docs-main',
         properties: {
           marginLeft: 0,
-          padding: '32px 22px 56px',
+          padding: '28px 22px 56px',
         },
       },
     ],

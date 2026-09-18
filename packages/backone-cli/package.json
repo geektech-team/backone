@@ -1,6 +1,6 @@
 {
   "name": "@geektech/backone-cli",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CLI scaffolding tool for BackOne server applications",
   "type": "module",
   "exports": {
@@ -30,7 +30,7 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "homepage": "https://github.com/geektech-team/backone",
+  "homepage": "https://geektech-team.github.io/backone/cli/",
   "bugs": {
     "url": "https://github.com/geektech-team/backone/issues"
   },

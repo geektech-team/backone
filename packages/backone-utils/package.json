@@ -1,6 +1,6 @@
 {
   "name": "@geektech/backone-utils",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "BackOne 通用工具包：数据库（多库 CRUD）、ID、缓存、JWT、HTTP、限流、校验、全局配置（零运行时依赖）",
   "type": "module",
   "main": "./dist/index.js",
@@ -37,7 +37,7 @@
     "configuration"
   ],
   "author": "Jimmie Max(Qianyu)",
-  "homepage": "https://github.com/geektech-team/backone",
+  "homepage": "https://geektech-team.github.io/backone/utils/",
   "bugs": {
     "url": "https://github.com/geektech-team/backone/issues"
   },
