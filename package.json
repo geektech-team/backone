@@ -19,7 +19,8 @@
     "test": "bun test",
     "docs": "bun run --cwd docs dev",
     "docs:build": "bun run --cwd docs build",
-    "docs:build:pages": "bun run --cwd docs build:pages"
+    "docs:build:pages": "bun run --cwd docs build:pages",
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

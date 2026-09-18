@@ -37,4 +37,4 @@ export type {
 
 // 导出框架名称和版本
 export const name = '@geektech/backone';
-export const version = '0.1.0';
+export const version = '0.1.1';

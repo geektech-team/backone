@@ -128,4 +128,4 @@ export { BackoneError } from './errors';
 
 // 导出包名与版本（发布脚本同步）
 export const name = '@geektech/backone-utils';
-export const version = '0.5.0';
+export const version = '0.5.1';
