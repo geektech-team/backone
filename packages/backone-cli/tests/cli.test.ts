@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readFileSync, existsSync } from 'node:fs';
@@ -83,17 +83,131 @@ describe('initProject', () => {
     expect(index).toContain('/api');
   });
 
-  it('throws when directory already exists', async () => {
-    const name = 'test-exists';
+  it('initializes an existing empty directory without confirmation', async () => {
+    const name = 'test-empty-directory';
+    mkdirSync(join(dir, name));
+
+    const result = await initProject({
+      name,
+      template: 'minimal',
+      skipInstall: true,
+      cwd: dir,
+      confirmOverwrite: () => {
+        throw new Error('Unexpected overwrite confirmation');
+      },
+    });
+
+    expect(existsSync(join(result.projectPath, 'src/index.ts'))).toBe(true);
+  });
+
+  it('overwrites only confirmed files and preserves other existing files', async () => {
+    const name = 'test-confirm-overwrite';
+    const projectPath = join(dir, name);
+    mkdirSync(join(projectPath, 'src'), { recursive: true });
+    writeFileSync(join(projectPath, 'package.json'), 'original package');
+    writeFileSync(join(projectPath, 'src/index.ts'), 'original source');
+    writeFileSync(join(projectPath, 'notes.txt'), 'keep these notes');
+    const conflicts: string[] = [];
+
+    await initProject({
+      name,
+      template: 'minimal',
+      skipInstall: true,
+      cwd: dir,
+      confirmOverwrite: async (filePath) => {
+        conflicts.push(filePath);
+        return filePath === 'package.json';
+      },
+    });
+
+    expect(conflicts.sort()).toEqual(['package.json', 'src/index.ts']);
+    const pkg = JSON.parse(
+      readFileSync(join(projectPath, 'package.json'), 'utf-8')
+    );
+    expect(pkg.name).toBe(name);
+    expect(readFileSync(join(projectPath, 'src/index.ts'), 'utf-8')).toBe(
+      'original source'
+    );
+    expect(readFileSync(join(projectPath, 'notes.txt'), 'utf-8')).toBe(
+      'keep these notes'
+    );
+    expect(existsSync(join(projectPath, 'tsconfig.json'))).toBe(true);
+  });
+
+  it('preserves conflicting files without a TTY or overwrite callback', async () => {
+    const name = 'test-non-interactive';
+    const projectPath = join(dir, name);
+    mkdirSync(projectPath);
+    writeFileSync(join(projectPath, 'package.json'), 'original package');
+
+    const proc = Bun.spawn(
+      [
+        process.execPath,
+        '-e',
+        `import { initProject } from ${JSON.stringify(
+          join(import.meta.dir, '../src/commands/init.ts')
+        )}; await initProject({ name: ${JSON.stringify(name)}, template: 'minimal', skipInstall: true });`,
+      ],
+      { cwd: dir, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' }
+    );
+
+    expect(await proc.exited).toBe(0);
+    expect(readFileSync(join(projectPath, 'package.json'), 'utf-8')).toBe(
+      'original package'
+    );
+    expect(existsSync(join(projectPath, 'src/index.ts'))).toBe(true);
+  });
+
+  it('rejects a file used as the project directory', async () => {
+    const name = 'test-file-target';
+    writeFileSync(join(dir, name), 'keep target file');
+
+    await expect(
+      initProject({ name, template: 'minimal', skipInstall: true, cwd: dir })
+    ).rejects.toThrow('not a directory');
+    expect(readFileSync(join(dir, name), 'utf-8')).toBe('keep target file');
+  });
+
+  it('rejects a directory used as a template file', async () => {
+    const name = 'test-directory-conflict';
+    mkdirSync(join(dir, name, 'package.json'), { recursive: true });
+    writeFileSync(join(dir, name, 'package.json/notes.txt'), 'keep notes');
+
+    await expect(
+      initProject({
+        name,
+        template: 'minimal',
+        skipInstall: true,
+        cwd: dir,
+        confirmOverwrite: () => true,
+      })
+    ).rejects.toThrow('not a regular file');
+    expect(
+      readFileSync(join(dir, name, 'package.json/notes.txt'), 'utf-8')
+    ).toBe('keep notes');
+  });
+
+  it('keeps all files when overwrite confirmation is declined', async () => {
+    const name = 'test-decline-overwrite';
     await initProject({
       name,
       template: 'minimal',
       skipInstall: true,
       cwd: dir,
     });
-    expect(
-      initProject({ name, template: 'minimal', skipInstall: true, cwd: dir })
-    ).rejects.toThrow('Directory already exists');
+    writeFileSync(join(dir, name, 'README.md'), 'custom readme');
+
+    await initProject({
+      name,
+      template: 'minimal',
+      skipInstall: true,
+      cwd: dir,
+      confirmOverwrite: () => false,
+    });
+
+    expect(readFileSync(join(dir, name, 'README.md'), 'utf-8')).toBe(
+      'custom readme'
+    );
   });
 });
 

@@ -31,13 +31,19 @@ backone --version
 backone --help
 ```
 
+Initialization also works in an existing directory. Each existing template
+file prompts `Overwrite? (y/N)`: enter `y` or `yes` to overwrite it, or press
+Enter to keep it. Skipped files and files outside the template are preserved;
+missing template files are created. Without an interactive terminal, existing
+files are kept automatically.
+
 ## Templates
 
-| Template | Description |
-| --- | --- |
-| `minimal` | Single route, zero extras |
-| `rest-api` | CRUD example with route groups and middleware |
-| `websocket` | Real-time chat with browser client |
+| Template    | Description                                   |
+| ----------- | --------------------------------------------- |
+| `minimal`   | Single route, zero extras                     |
+| `rest-api`  | CRUD example with route groups and middleware |
+| `websocket` | Real-time chat with browser client            |
 
 ## Programmatic API
 
@@ -49,8 +55,13 @@ await initProject({
   template: 'rest-api',
   skipInstall: false,
   cwd: process.cwd(),
+  // Optional: decide for each existing file (path relative to the project root)
+  confirmOverwrite: async (filePath) => filePath === 'README.md',
 });
 ```
+
+`confirmOverwrite` may return a boolean or a promise. If omitted, the API uses
+the same terminal prompt and non-interactive behavior as the CLI.
 
 ## Development
 

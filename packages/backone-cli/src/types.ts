@@ -11,6 +11,8 @@ export interface InitOptions {
   skipInstall?: boolean;
   /** 目标父目录，默认 process.cwd() */
   cwd?: string;
+  /** 确认覆盖已有文件（路径相对项目根）；默认 TTY 询问，非 TTY 保留 */
+  confirmOverwrite?: (filePath: string) => boolean | Promise<boolean>;
 }
 
 export interface InitResult {

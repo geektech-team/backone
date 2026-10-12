@@ -1,6 +1,6 @@
 {
   "name": "@geektech/backone-cli",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "description": "CLI scaffolding tool for BackOne server applications",
   "type": "module",
   "exports": {

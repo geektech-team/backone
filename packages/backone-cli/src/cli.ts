@@ -5,7 +5,7 @@
 import { initProject } from './commands/init';
 import type { TemplateName } from './types';
 
-const VERSION = '0.2.2';
+const VERSION = '0.2.4';
 
 export async function runCli(): Promise<void> {
   const args = process.argv.slice(2);
@@ -36,7 +36,7 @@ export async function runCli(): Promise<void> {
 
     try {
       const result = await initProject({ name, template, skipInstall });
-      console.log(`\n  Created ${name} using ${result.template} template`);
+      console.log(`\n  Initialized ${name} using ${result.template} template`);
       console.log(`\nNext steps:`);
       console.log(`  cd ${name}`);
       if (!result.installed) console.log(`  bun install`);

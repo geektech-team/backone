@@ -138,7 +138,17 @@ export function renderCliCommands(_ctx: PageContext): VNode | VNode[] {
     ),
     h2('行为约定'),
     ul([
-      ['目标目录已存在时抛出错误，不覆盖已有文件。'],
+      ['允许在已有目录中初始化，缺少的模板文件会直接生成，其他文件保留。'],
+      [
+        '同名模板文件逐个询问 ',
+        inline('Overwrite? (y/N)'),
+        '；输入 y 或 yes 才覆盖，回车或拒绝则跳过该文件并继续。',
+      ],
+      [
+        '非 TTY 环境自动保留已有文件；编程式 API 可通过 ',
+        inline('confirmOverwrite(filePath)'),
+        ' 返回 boolean 或 Promise<boolean> 决定是否覆盖，路径相对项目根。',
+      ],
       ['模板文件内容中 ', inline('{{name}}'), ' 占位会被替换为项目名。'],
       ['依赖安装失败时打印警告，不阻断项目生成。'],
     ]),

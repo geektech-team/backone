@@ -3,7 +3,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as readline from 'node:readline';
 import { TEMPLATES, TEMPLATE_DESCRIPTIONS } from '../templates';
@@ -14,8 +14,8 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   const cwd = options.cwd ?? process.cwd();
   const projectPath = resolve(cwd, options.name);
 
-  if (existsSync(projectPath)) {
-    throw new Error(`Directory already exists: ${projectPath}`);
+  if (existsSync(projectPath) && !lstatSync(projectPath).isDirectory()) {
+    throw new Error(`Project path is not a directory: ${projectPath}`);
   }
 
   const template = options.template ?? (await promptTemplate());
@@ -26,7 +26,26 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   for (const file of files) {
     const filePath = join(projectPath, file.path);
     await mkdir(join(filePath, '..'), { recursive: true });
-    await writeFile(filePath, file.content, 'utf-8');
+    try {
+      await writeFile(filePath, file.content, {
+        encoding: 'utf-8',
+        flag: 'wx',
+      });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      if (!lstatSync(filePath).isFile()) {
+        throw new Error(`Template path is not a regular file: ${filePath}`);
+      }
+
+      const overwrite = await (options.confirmOverwrite ?? promptOverwrite)(
+        file.path
+      );
+      if (overwrite) {
+        await writeFile(filePath, file.content, 'utf-8');
+      } else {
+        console.log(`Skipped existing file: ${file.path}`);
+      }
+    }
   }
 
   // 安装依赖
@@ -46,6 +65,30 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   }
 
   return { projectPath, template, installed };
+}
+
+/** 逐个确认覆盖已有文件，默认保留（非 TTY 不询问） */
+async function promptOverwrite(filePath: string): Promise<boolean> {
+  if (
+    !process.stdin.isTTY ||
+    process.stdin.readableEnded ||
+    process.stdin.destroyed
+  ) {
+    return false;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise<boolean>((resolve) => {
+    rl.once('close', () => resolve(false));
+    rl.question(`File already exists: ${filePath}. Overwrite? (y/N): `, (a) => {
+      resolve(/^(y|yes)$/i.test(a.trim()));
+      rl.close();
+    });
+  });
 }
 
 /** 交互式选择模板（非 TTY 时默认 minimal） */
