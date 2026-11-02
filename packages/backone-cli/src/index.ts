@@ -9,4 +9,5 @@ export type {
   InitResult,
   TemplateFile,
   TemplateName,
+  ProjectStyle,
 } from './types';

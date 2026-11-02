@@ -15,6 +15,7 @@
  */
 
 import { createServer, HttpError, name, version } from '@geektech/backone';
+import { registerControllerDemo } from './controller-demo';
 import {
   createCache,
   createHttpClient,
@@ -30,6 +31,9 @@ const app = createServer({
   port: 5390,
   development: true,
 });
+
+// Controller 示例：GET/POST /controller-api/users、GET /controller-api/users/:id
+registerControllerDemo(app);
 
 // ---- 中间件（洋葱模型，按注册顺序执行） ----
 

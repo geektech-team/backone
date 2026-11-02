@@ -19,7 +19,7 @@ await run(['bunx', 'tsc', '--project', 'tsconfig.build.json']);
 const minify = process.env.BACKONE_MINIFY !== '0';
 
 const result = await Bun.build({
-  entrypoints: ['./lib/index.ts'],
+  entrypoints: ['./lib/index.ts', './lib/decorators/index.ts'],
   outdir: './dist',
   root: './lib',
   target: 'bun',

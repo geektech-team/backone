@@ -21,6 +21,7 @@ static file serving.
 - Route groups with `app.group(prefix, callback)` for shared prefixes
 - Route prefix with `app.usePrefix(prefix, callback?)`: persistent replacement or scoped stacking for later routes, composable with `group`
 - Graceful shutdown: wait for in-flight requests, force-close after timeout
+- Optional standard decorators for Controllers and local middleware
 
 ## Requirements
 
@@ -87,6 +88,67 @@ app.usePrefix('/v2', (api) => {
 app.usePrefix(); // reset: no prefix
 ```
 
+### Controller decorators
+
+Use the optional `@geektech/backone/decorators` entry with Bun >=1.3.10 and
+TypeScript >=5.0. Leave `experimentalDecorators` and `emitDecoratorMetadata`
+disabled; handlers receive the existing `Context`.
+
+```ts
+import { createServer, type Context } from '@geektech/backone';
+import {
+  Controller,
+  Get,
+  Use,
+  registerControllers,
+} from '@geektech/backone/decorators';
+
+@Controller('/users')
+@Use((ctx, next) => {
+  ctx.set('x-request-id', crypto.randomUUID());
+  return next();
+})
+class UsersController {
+  @Get('/:id')
+  detail(ctx: Context) {
+    return { id: ctx.params.id };
+  }
+}
+
+const app = createServer();
+app.usePrefix('/api', (api) => {
+  console.table(registerControllers(api, [new UsersController()]));
+});
+await app.listen();
+```
+
+- `@Controller(prefix = '')` declares a prefix. `@Get`, `@Post`, `@Put`,
+  `@Patch`, `@Delete`, `@Options`, `@Head`, `@All` take an optional path
+  (default `''`). Multiple distinct route decorators may share one method.
+- `@Use(...middlewares)` works on classes and methods. Entry order is global,
+  base class, derived class, method, handler; exit order is reversed. Stacked
+  `@Use` declarations run top to bottom, arguments left to right.
+- `registerControllers(app, instances)` binds methods once and returns a frozen
+  list of `{ method, path, controller, handler }` for this batch. Paths include
+  the current app prefix. Construct service dependencies explicitly and pass
+  them to your controllers. Instances are reused; keep request state in `ctx`.
+- Only public instance methods are supported. Constructor method binding keeps
+  the prototype route declaration. Inherited methods are included; derived
+  prototype-method overrides hide base routes and need new decorators. Each derived controller
+  needs its own `@Controller`; class middleware is inherited base first.
+- The complete batch is checked before registration. Duplicate method/matching
+  paths are rejected across decorator registrations on the same app; separate
+  apps are independent. Shared dynamic segments must use the same parameter
+  name (for example `:id` in both `/users/:id/view` and `/users/:id/edit`).
+  When mixing functional routes, ensure they do not conflict with Controllers.
+- Bun 1.4.0 currently fails to transpile direct updates to `#private` fields
+  inside decorated methods. Put those updates in a service or an undecorated
+  helper. Reading private dependencies and bound instance methods are tested.
+
+Generate a complete REST example with
+`backone init my-api --template rest-api --style controller`. The playground
+also exposes GET/POST `/controller-api/users` and GET `/controller-api/users/:id`.
+
 ### Context
 
 Each request gets a `Context`:
@@ -124,9 +186,15 @@ Bun native `server.upgrade()`.
 
 ```ts
 app.ws('/echo', {
-  open(ws) { ws.send('connected'); },
-  message(ws, message) { ws.send(`echo: ${message}`); },
-  close(ws, code, reason) { console.log('closed', code, reason); },
+  open(ws) {
+    ws.send('connected');
+  },
+  message(ws, message) {
+    ws.send(`echo: ${message}`);
+  },
+  close(ws, code, reason) {
+    console.log('closed', code, reason);
+  },
 });
 ```
 

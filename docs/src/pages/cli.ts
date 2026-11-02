@@ -83,6 +83,12 @@ export function renderCliCommands(_ctx: PageContext): VNode | VNode[] {
           ],
         ],
         [[inline('--no-install')], ['跳过 bun install']],
+        [
+          [inline('--style <name>')],
+          [
+            'functional（默认）或 controller；controller 仅支持 rest-api，未指定模板时自动选择 rest-api，要求 Bun >=1.3.10。',
+          ],
+        ],
       ]
     ),
     h3('交互式模板选择'),
@@ -102,6 +108,11 @@ export function renderCliCommands(_ctx: PageContext): VNode | VNode[] {
       ].join('\n'),
       'text'
     ),
+    h3('Controller REST 项目'),
+    codeblock('backone init my-api --template rest-api --style controller'),
+    p([
+      '生成 controllers、services、middlewares、可测试的 app 工厂及启动入口。提供 /api/users 的 CRUD、显式依赖注入、JSON 校验和请求 ID；安装后可运行 bun run typecheck。保持 experimentalDecorators 和 emitDecoratorMetadata 关闭。',
+    ]),
     h2('版本与帮助'),
     codeblock(
       [
@@ -115,6 +126,7 @@ export function renderCliCommands(_ctx: PageContext): VNode | VNode[] {
         '',
         'Options:',
         '  --template <name>   Template: minimal | rest-api | websocket',
+        '  --style <name>      Style: functional (default) | controller (rest-api only)',
         '  --no-install        Skip bun install',
       ].join('\n'),
       'text'
@@ -128,6 +140,7 @@ export function renderCliCommands(_ctx: PageContext): VNode | VNode[] {
         'const result = await initProject({',
         "  name: 'my-app',",
         "  template: 'rest-api',",
+        "  style: 'controller', // 可选，默认 functional",
         '  skipInstall: true,',
         '});',
         '',

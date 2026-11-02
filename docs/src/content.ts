@@ -1,5 +1,6 @@
 import type { VNode } from '@geektech/tsone';
 import { renderHome } from './pages/home';
+import { renderBackoneDecorators } from './pages/decorators';
 import {
   renderBackoneOverview,
   renderBackoneQuickstart,
@@ -91,6 +92,13 @@ export const sections: DocSection[] = [
         description:
           'createServer 选项、路由注册、路径参数、路由组、usePrefix 与生命周期。',
         render: renderBackoneServer,
+      },
+      {
+        route: '/backone/decorators',
+        title: 'Controller 装饰器',
+        description:
+          '标准装饰器 Controller、HTTP 方法、Use 与显式注册，支持服务构造注入和路由清单。',
+        render: renderBackoneDecorators,
       },
       {
         route: '/backone/middleware',

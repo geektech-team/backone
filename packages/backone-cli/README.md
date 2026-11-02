@@ -26,6 +26,9 @@ backone init my-app --template rest-api
 # Create without installing dependencies
 backone init my-app --no-install
 
+# Create a Controller REST API (Bun >=1.3.10)
+backone init my-api --template rest-api --style controller
+
 # Show version / help
 backone --version
 backone --help
@@ -36,6 +39,19 @@ file prompts `Overwrite? (y/N)`: enter `y` or `yes` to overwrite it, or press
 Enter to keep it. Skipped files and files outside the template are preserved;
 missing template files are created. Without an interactive terminal, existing
 files are kept automatically.
+
+`--style` accepts `functional` (default) or `controller`. Controller style is
+available for `rest-api`; specifying only `--style controller` selects that
+template automatically. Unsupported combinations and missing option values
+fail before files are written.
+
+Controller projects include a testable `createApp()` factory, `controllers/`,
+`services/`, and `middlewares/`. Run `bun run typecheck` after installation.
+GET/POST `/api/users` and GET/PUT/DELETE `/api/users/:id` demonstrate CRUD,
+explicit service injection, request IDs, JSON validation and HTTP errors.
+They use standard decorators with `experimentalDecorators` and
+`emitDecoratorMetadata` disabled. Controllers and services are reused; store
+request state in `ctx`.
 
 ## Templates
 
@@ -53,6 +69,7 @@ import { initProject } from '@geektech/backone-cli';
 await initProject({
   name: 'my-app',
   template: 'rest-api',
+  style: 'controller', // Optional; defaults to 'functional'
   skipInstall: false,
   cwd: process.cwd(),
   // Optional: decide for each existing file (path relative to the project root)

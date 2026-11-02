@@ -54,9 +54,33 @@ describe('package contract', () => {
     expect(version).toBe(readPackageJson().version);
   });
 
-  it('构建产物包含入口与类型声明', () => {
+  it('构建产物包含入口与类型声明，装饰器与主入口可组合使用', async () => {
     run(['bun', 'run', 'build']);
     expect(existsSync(join(packageRoot, 'dist/index.js'))).toBe(true);
     expect(existsSync(join(packageRoot, 'dist/index.d.ts'))).toBe(true);
+    expect(existsSync(join(packageRoot, 'dist/decorators/index.d.ts'))).toBe(
+      true
+    );
+
+    const { createServer, HttpError } = (await import(
+      new URL('../dist/index.js', import.meta.url).href
+    )) as typeof import('../lib/index');
+    const { Controller, Get, registerControllers } = (await import(
+      new URL('../dist/decorators/index.js', import.meta.url).href
+    )) as typeof import('../lib/decorators');
+    @Controller('/built')
+    class Built {
+      @Get() get() {
+        throw new HttpError(409, 'Built package conflict');
+      }
+    }
+    const app = createServer();
+    registerControllers(app, [new Built()]);
+    const response = await app.handle(new Request('http://localhost/built'));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'Built package conflict',
+      status: 409,
+    });
   });
 });

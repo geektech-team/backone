@@ -3,9 +3,9 @@
  */
 
 import { initProject } from './commands/init';
-import type { TemplateName } from './types';
+import type { ProjectStyle, TemplateName } from './types';
 
-const VERSION = '0.2.4';
+const VERSION = '0.3.0';
 
 export async function runCli(): Promise<void> {
   const args = process.argv.slice(2);
@@ -26,16 +26,18 @@ export async function runCli(): Promise<void> {
     if (!name) {
       console.error('Error: project name is required');
       console.error(
-        'Usage: backone init <project-name> [--template <t>] [--no-install]'
+        'Usage: backone init <project-name> [--template <t>] [--style <s>] [--no-install]'
       );
       process.exit(1);
     }
 
-    const template = parseFlag(args, '--template') as TemplateName | undefined;
     const skipInstall = args.includes('--no-install');
 
     try {
-      const result = await initProject({ name, template, skipInstall });
+      const template = parseFlag(args, '--template') as
+        TemplateName | undefined;
+      const style = parseFlag(args, '--style') as ProjectStyle | undefined;
+      const result = await initProject({ name, template, style, skipInstall });
       console.log(`\n  Initialized ${name} using ${result.template} template`);
       console.log(`\nNext steps:`);
       console.log(`  cd ${name}`);
@@ -55,7 +57,13 @@ export async function runCli(): Promise<void> {
 
 function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
-  if (idx !== -1 && idx + 1 < args.length) return args[idx + 1];
+  if (idx !== -1) {
+    const value = args[idx + 1];
+    if (value === undefined || value.startsWith('--')) {
+      throw new Error(`A value is required for ${flag}`);
+    }
+    return value;
+  }
   return undefined;
 }
 
@@ -69,6 +77,7 @@ Usage:
 
 Options:
   --template <name>   Template: minimal | rest-api | websocket
+  --style <name>      Style: functional (default) | controller (rest-api only)
   --no-install        Skip bun install
 `);
 }

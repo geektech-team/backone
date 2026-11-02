@@ -9,6 +9,9 @@
     "baseUrl": ".",
     "paths": {
       "@geektech/backone": ["packages/backone/lib/index.ts"],
+      "@geektech/backone/decorators": [
+        "packages/backone/lib/decorators/index.ts"
+      ],
       "@geektech/backone-cli": ["packages/backone-cli/src/index.ts"],
       "@geektech/backone-utils": ["packages/backone-utils/lib/index.ts"]
     },

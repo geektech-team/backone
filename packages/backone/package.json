@@ -1,6 +1,6 @@
 {
   "name": "@geektech/backone",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "BackOne 是基于 Bun 的轻量级纯 TypeScript 服务端框架，零运行时依赖，提供路由、中间件、上下文与静态文件服务",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,6 +10,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./decorators": {
+      "types": "./dist/decorators/index.d.ts",
+      "import": "./dist/decorators/index.js"
     }
   },
   "scripts": {
