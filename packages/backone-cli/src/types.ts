@@ -1,14 +1,14 @@
 /** BackOne CLI 公共类型 */
 
 export type TemplateName = 'minimal' | 'rest-api' | 'websocket';
-export type ProjectStyle = 'functional' | 'controller';
+export type ProjectStyle = 'controller';
 
 export interface InitOptions {
   /** 项目名称（目录名） */
   name: string;
   /** 模板类型，默认交互式选择 */
   template?: TemplateName;
-  /** 业务代码风格，默认 functional；controller 仅支持 rest-api */
+  /** 所有模板均为类风格；显式 controller 未指定模板时选择 rest-api */
   style?: ProjectStyle;
   /** 是否跳过依赖安装，默认 false */
   skipInstall?: boolean;

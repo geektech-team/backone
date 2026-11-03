@@ -10,6 +10,9 @@ export default defineConfig({
     // BackOne 框架
     '/backone': 'src/main.ts',
     '/backone/quickstart': 'src/main.ts',
+    '/backone/architecture': 'src/main.ts',
+    '/backone/modules': 'src/main.ts',
+    '/backone/decorators': 'src/main.ts',
     '/backone/server': 'src/main.ts',
     '/backone/middleware': 'src/main.ts',
     '/backone/context': 'src/main.ts',

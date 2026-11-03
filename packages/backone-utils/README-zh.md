@@ -38,43 +38,70 @@
 
 ## 快速开始
 
+同一业务的 Repository、Service、Controller、模型和 Schema 就近放在
+`modules/<feature>/`。BackOne 的 `@Module` 类显式组合业务对象，Application
+注入 Database 并负责关闭。模块注册不会自动初始化或关闭数据库连接。
+
+推荐用业务 Repository 类组合 Database/Table，再通过构造函数注入 Service。
+Repository 借用连接，创建连接的 Application 负责关闭。
+
 ```ts
-import { DatabaseManager } from '@geektech/backone-utils';
+import { Database, type Table } from '@geektech/backone-utils';
 
 interface User {
   id: number;
   name: string;
-  age: number | null;
 }
 
-const db = new DatabaseManager();
-db.register('primary', { url: process.env.DATABASE_URL }); // postgres://... / mysql://...
-db.register('audit', { url: ':memory:' }); // sqlite 内存库
+class UsersRepository {
+  private readonly users: Table<User>;
 
-const users = db.get('primary').table<User>('users');
+  constructor(database: Database) {
+    this.users = database.table<User>('users');
+  }
 
-const created = await users.insert({ name: 'alice', age: 30 });
-const list = await users.findMany({
-  where: { age: { gte: 18 }, OR: [{ name: { like: 'a%' } }, { city: 'x' }] },
-  orderBy: { id: 'desc' },
-  limit: 20,
-});
-await users.update({ age: 31 }, { name: 'alice' });
-await users.delete({ name: 'alice' });
+  list(): Promise<User[]> {
+    return this.users.findMany({ orderBy: { id: 'asc' } });
+  }
 
-await db.close();
+  create(name: string): Promise<User | null> {
+    return this.users.insert({ name });
+  }
+}
+
+const database = new Database({ url: ':memory:' });
+try {
+  await database.raw(`CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+  )`);
+  const users = new UsersRepository(database);
+  await users.create('Alice');
+  console.log(await users.list());
+
+  await database.transaction(async (tx) => {
+    const transactionalUsers = new UsersRepository(tx);
+    await transactionalUsers.create('Bob');
+  });
+} finally {
+  await database.close();
+}
 ```
+
+事务内必须使用 tx 创建 Repository，避免继续访问事务外连接。建表 DDL 为
+SQLite 语法，其他方言需替换。多库连接可由 Application 持有的 DatabaseManager
+统一管理。完整分层示例见[对象优先指南](../../docs/object-first.md)。
 
 ## 多库连接管理（DatabaseManager）
 
-| 方法 | 说明 |
-| --- | --- |
-| `register(name, options)` | 注册具名连接并返回 `Database` 实例 |
-| `get(name)` | 解析已注册的 `Database`（未注册抛 `DB_NOT_FOUND`） |
-| `has(name)` | 是否已注册 |
-| `names()` / `list()` | 已注册的名称 / 实例列表 |
-| `remove(name)` | 关闭并移除单个数据库 |
-| `close()` | 关闭全部数据库 |
+| 方法                      | 说明                                               |
+| ------------------------- | -------------------------------------------------- |
+| `register(name, options)` | 注册具名连接并返回 `Database` 实例                 |
+| `get(name)`               | 解析已注册的 `Database`（未注册抛 `DB_NOT_FOUND`） |
+| `has(name)`               | 是否已注册                                         |
+| `names()` / `list()`      | 已注册的名称 / 实例列表                            |
+| `remove(name)`            | 关闭并移除单个数据库                               |
+| `close()`                 | 关闭全部数据库                                     |
 
 `DatabaseManager` 相关错误携带稳定 `code`：`DB_ALREADY_REGISTERED`、
 `DB_NOT_FOUND`、`DB_CLOSED`、`DB_MISSING_URL`、`DB_EMPTY_WRITE`、
@@ -86,11 +113,11 @@ await db.close();
 
 ```ts
 interface DbConnectionOptions {
-  name?: string;       // 库的业务名称（默认 'default'）
-  url?: string | URL;  // 连接串，见下方示例
+  name?: string; // 库的业务名称（默认 'default'）
+  url?: string | URL; // 连接串，见下方示例
   dialect?: 'sqlite' | 'postgres' | 'mysql' | 'mariadb'; // 缺省按 url 推断
-  readonly?: boolean;  // 只读标记（当前版本不强制拦截写入）
-  max?: number;        // 连接池大小（服务端方言）
+  readonly?: boolean; // 只读标记（当前版本不强制拦截写入）
+  max?: number; // 连接池大小（服务端方言）
   idleTimeout?: number;
   connectionTimeout?: number;
   tls?: boolean | string | Record<string, unknown>;
@@ -129,7 +156,7 @@ await db.close();
 const users = db.get('primary').table<User>('users');
 // 自定义主键：db.table<Row>('orders', { primaryKey: 'order_id' })
 
-await users.findById(1);                       // T | null
+await users.findById(1); // T | null
 await users.findOne({ where: { name: 'alice' } });
 await users.findMany({
   where: { age: { between: [18, 30] } },
@@ -141,10 +168,10 @@ await users.findMany({
 await users.count({ status: { in: ['active', 'pending'] } });
 await users.exists({ name: 'alice' });
 
-await users.insert({ name: 'bob', age: 25 });        // 返回插入后的行（含自增主键）
+await users.insert({ name: 'bob', age: 25 }); // 返回插入后的行（含自增主键）
 await users.insertMany([{ name: 'a' }, { name: 'b' }]); // { rows, count }
-await users.update({ age: 26 }, { name: 'bob' });     // { count, rows }
-await users.delete({ name: 'bob' });                  // { count, rows }
+await users.update({ age: 26 }, { name: 'bob' }); // { count, rows }
+await users.delete({ name: 'bob' }); // { count, rows }
 ```
 
 说明：
@@ -181,24 +208,24 @@ where: {
 
 ```ts
 import {
-  Database,          // 单连接封装
-  DatabaseManager,   // 多库连接管理
-  createDatabase,    // 独立 Database 工厂
-  Table,             // 单表增删改查句柄
-  BackoneDbError,    // 带稳定错误码的类型化错误
-
-  createId,          // 快捷生成 ID（默认 uuidv7）
+  Database, // 单连接封装
+  DatabaseManager, // 多库连接管理
+  createDatabase, // 独立 Database 工厂
+  Table, // 单表增删改查句柄
+  BackoneDbError, // 带稳定错误码的类型化错误
+  createId, // 快捷生成 ID（默认 uuidv7）
   createIdGenerator, // 策略化 ID 生成器工厂
-  createCache,       // TTL / LRU 缓存工厂
-  createJwt,         // JWT 签发 / 验证服务
-  createHttpClient,  // 带重试 / 超时的 fetch 封装
+  createCache, // TTL / LRU 缓存工厂
+  createJwt, // JWT 签发 / 验证服务
+  createHttpClient, // 带重试 / 超时的 fetch 封装
   createRateLimiter, // 固定 / 滑动 / 令牌桶限流工厂
-  v,                 // schema 校验器工厂（zod 风格）
-  defineConfig,      // 从环境变量读取强类型配置（前缀 + 转换 + fail-fast）
-  EnvSource,         // 环境变量读取源（Bun.env + process.env）
-  ConfigError,       // 配置错误（稳定错误码）
-  BackoneError,      // 统一错误基类（稳定错误码）
-  name, version,
+  v, // schema 校验器工厂（zod 风格）
+  defineConfig, // 从环境变量读取强类型配置（前缀 + 转换 + fail-fast）
+  EnvSource, // 环境变量读取源（Bun.env + process.env）
+  ConfigError, // 配置错误（稳定错误码）
+  BackoneError, // 统一错误基类（稳定错误码）
+  name,
+  version,
 } from '@geektech/backone-utils';
 ```
 
@@ -207,11 +234,11 @@ import {
 统一 `IdGenerator` 接口下的策略化 ID 生成器
 （`createIdGenerator(strategy)` / `createId(strategy)`，默认 `uuidv7`）：
 
-| 策略 | 说明 |
-| --- | --- |
-| `uuidv4` | 随机 UUID（Web Crypto） |
-| `uuidv7` | 时间有序 UUID（Bun 内置，适合做主键） |
-| `nanoid` | 短 URL 安全 ID，可配字符表与长度 |
+| 策略        | 说明                                       |
+| ----------- | ------------------------------------------ |
+| `uuidv4`    | 随机 UUID（Web Crypto）                    |
+| `uuidv7`    | 时间有序 UUID（Bun 内置，适合做主键）      |
+| `nanoid`    | 短 URL 安全 ID，可配字符表与长度           |
 | `snowflake` | 41+10+12 位雪花 ID，单调递增，时钟回拨安全 |
 
 ```ts

@@ -33,8 +33,9 @@ export type {
   BackOneWebSocket,
   WebSocketData,
   WebSocketHandler,
+  WebSocketOptions,
 } from './websocket';
 
 // 导出框架名称和版本
 export const name = '@geektech/backone';
-export const version = '0.2.0';
+export const version = '0.4.0';

@@ -5,7 +5,7 @@
 import { initProject } from './commands/init';
 import type { ProjectStyle, TemplateName } from './types';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 export async function runCli(): Promise<void> {
   const args = process.argv.slice(2);
@@ -77,7 +77,7 @@ Usage:
 
 Options:
   --template <name>   Template: minimal | rest-api | websocket
-  --style <name>      Style: functional (default) | controller (rest-api only)
+  --style <name>      Style: controller (all templates use classes by default)
   --no-install        Skip bun install
 `);
 }

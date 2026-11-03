@@ -2,6 +2,7 @@ import type { VNode } from '@geektech/tsone';
 import { h } from '@geektech/tsone';
 import { codeblock, h2, p, hr } from '../components';
 import type { PageContext } from '../content';
+import { minimalClassExample } from '../examples';
 
 export function renderHome(ctx: PageContext): VNode {
   return h('div', {}, [
@@ -35,7 +36,7 @@ export function renderHome(ctx: PageContext): VNode {
           '@geektech/backone-utils',
         ]),
         h('p', { className: 'docs-home-card-desc' }, [
-          '通用工具包：多库 CRUD、ID 生成、缓存、JWT、HTTP 客户端、限流、Schema 校验与全局配置。',
+          '类数据库与通用工具：多库 CRUD、ID 生成、缓存、JWT、HTTP 客户端、限流、Schema 校验与全局配置。',
         ]),
         h('span', { className: 'docs-home-card-link' }, ['阅读文档 →']),
       ]),
@@ -45,7 +46,7 @@ export function renderHome(ctx: PageContext): VNode {
           '@geektech/backone-cli',
         ]),
         h('p', { className: 'docs-home-card-desc' }, [
-          'Bun-native 脚手架：一条命令生成 minimal / rest-api / websocket 三种项目模板。',
+          '统一类脚手架：Application、Controller/Gateway、Service、Repository，覆盖 minimal / rest-api / websocket。',
         ]),
         h('span', { className: 'docs-home-card-link' }, ['阅读文档 →']),
       ]),
@@ -61,19 +62,10 @@ export function renderHome(ctx: PageContext): VNode {
       codeblock(
         'bun add @geektech/backone\nbun add @geektech/backone-utils\nbun add -d @geektech/backone-cli'
       ),
-      p(['第一个服务只有几行：']),
-      codeblock(
-        [
-          "import { createServer } from '@geektech/backone';",
-          '',
-          'const app = createServer({ port: 3000 });',
-          '',
-          "app.get('/', () => 'Hello, BackOne!');",
-          '',
-          'const port = await app.listen();',
-          'console.log(`Server running at http://127.0.0.1:${port}`);',
-        ].join('\n')
-      ),
+      p([
+        '推荐类路由和 Application 显式组装（Bun >=1.3.10、TypeScript >=5.2）：',
+      ]),
+      codeblock(minimalClassExample),
       p([
         '运行 ',
         h('code', {}, ['bun src/index.ts']),

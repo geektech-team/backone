@@ -19,12 +19,18 @@ import { serveStatic } from './middleware/static';
 import { timeout } from './middleware/timeout';
 import type { TimeoutOptions } from './middleware/timeout';
 import { serializeResponse } from './response';
+import { completeResponse } from './response-hooks';
 import { Router } from './router/router';
 import type { AppOptions, Handler, RouteMethod } from './types';
 import type { CorsOptions } from './middleware/cors';
 import type { LoggerOptions } from './middleware/logger';
 import type { StaticOptions } from './middleware/static';
-import type { WebSocketData, WebSocketHandler } from './websocket';
+import type {
+  BackOneWebSocket,
+  WebSocketData,
+  WebSocketHandler,
+  WebSocketOptions,
+} from './websocket';
 
 const JSON_TYPE = 'application/json; charset=utf-8';
 
@@ -62,7 +68,7 @@ export interface RouteGroup {
     path: string,
     ...handlers: Handler<P>[]
   ): this;
-  ws(path: string, handler: WebSocketHandler): this;
+  ws(path: string, handler: WebSocketHandler, options?: WebSocketOptions): this;
 }
 
 export class BackOneServer {
@@ -73,6 +79,7 @@ export class BackOneServer {
   /** 预编译的中间件链（use 后重编译），避免每请求重建闭包与数组 */
   #composedMiddlewares: ComposedHandler = compose([]);
   readonly #wsHandlers = new Map<string, WebSocketHandler>();
+  readonly #wsMiddlewares = new Map<string, ComposedHandler>();
   readonly #options: AppOptions;
   #server: Server<WebSocketData> | null = null;
   #activeRequests = 0;
@@ -161,9 +168,20 @@ export class BackOneServer {
   // ---- WebSocket ----
 
   /** 注册 WebSocket 处理器：请求 Upgrade 时自动升级并分发（路径应用当前前缀） */
-  ws(path: string, handler: WebSocketHandler): this {
-    this.#wsHandlers.set(this.#resolvePath(path), handler);
+  ws(
+    path: string,
+    handler: WebSocketHandler,
+    options: WebSocketOptions = {}
+  ): this {
+    const resolved = this.#resolvePath(path);
+    this.#wsHandlers.set(resolved, handler);
+    this.#wsMiddlewares.set(resolved, compose(options.middlewares ?? []));
     return this;
+  }
+
+  /** 检查当前前缀下是否已注册 WebSocket 路径。 */
+  hasWebSocket(path: string): boolean {
+    return this.#wsHandlers.has(this.#resolvePath(path));
   }
 
   // ---- 中间件 ----
@@ -293,9 +311,30 @@ export class BackOneServer {
     ) {
       const pathname = parsePathname(request.url);
       if (this.#wsHandlers.has(pathname)) {
-        const data: WebSocketData = { path: pathname };
-        if (server.upgrade(request, { data })) {
-          return new Response(null, { status: 101 });
+        const ctx = new Context(request);
+        const ready = Symbol('WebSocket upgrade ready');
+        let reachedUpgrade = false;
+        try {
+          const result = await this.#wsMiddlewares.get(pathname)?.(ctx, () => {
+            reachedUpgrade = true;
+            return ready;
+          });
+          if (result !== ready && (result !== undefined || !reachedUpgrade)) {
+            return this.#toResponse(ctx, result);
+          }
+          const data: WebSocketData = {
+            path: pathname,
+            state: { ...ctx.state },
+          };
+          if (server.upgrade(request, { data, headers: ctx.headers })) {
+            return new Response(null, { status: 101 });
+          }
+        } catch (error) {
+          return this.#errorResponse(
+            error instanceof HttpError
+              ? error
+              : new HttpError(500, undefined, { cause: error })
+          );
         }
       }
     }
@@ -319,7 +358,7 @@ export class BackOneServer {
 
     try {
       const result = await this.#composedMiddlewares(ctx, tailNext);
-      return this.#toResponse(ctx, result);
+      return await completeResponse(ctx, this.#toResponse(ctx, result));
     } catch (error) {
       const httpError =
         error instanceof HttpError
@@ -346,16 +385,24 @@ export class BackOneServer {
       idleTimeout: this.#options.idleTimeout,
       websocket: {
         open: (ws) => {
-          this.#wsHandlers.get(ws.data.path)?.open?.(ws);
+          this.#dispatchWebSocket(ws, () =>
+            this.#wsHandlers.get(ws.data.path)?.open?.(ws)
+          );
         },
         message: (ws, message) => {
-          this.#wsHandlers.get(ws.data.path)?.message?.(ws, message);
+          this.#dispatchWebSocket(ws, () =>
+            this.#wsHandlers.get(ws.data.path)?.message?.(ws, message)
+          );
         },
         close: (ws, code, reason) => {
-          this.#wsHandlers.get(ws.data.path)?.close?.(ws, code, reason);
+          this.#dispatchWebSocket(ws, () =>
+            this.#wsHandlers.get(ws.data.path)?.close?.(ws, code, reason)
+          );
         },
         drain: (ws) => {
-          this.#wsHandlers.get(ws.data.path)?.drain?.(ws);
+          this.#dispatchWebSocket(ws, () =>
+            this.#wsHandlers.get(ws.data.path)?.drain?.(ws)
+          );
         },
       },
     });
@@ -395,6 +442,30 @@ export class BackOneServer {
   }
 
   // ---- 内部 ----
+
+  #dispatchWebSocket(
+    ws: BackOneWebSocket<WebSocketData>,
+    callback: () => unknown
+  ): void {
+    const failed = () => {
+      try {
+        ws.close(1011, 'WebSocket handler failed');
+      } catch {
+        // close 回调报错时，连接可能已关闭。
+      }
+    };
+    try {
+      const result = callback();
+      if (
+        result !== null &&
+        (typeof result === 'object' || typeof result === 'function')
+      ) {
+        void Promise.resolve(result).catch(failed);
+      }
+    } catch {
+      failed();
+    }
+  }
 
   #toResponse(ctx: Context, value: unknown): Response {
     return serializeResponse(ctx, value);
@@ -499,8 +570,12 @@ class RouteGroupImpl implements RouteGroup {
     this.server.all(this.prefix + path, ...handlers);
     return this;
   }
-  ws(path: string, handler: WebSocketHandler): this {
-    this.server.ws(this.prefix + path, handler);
+  ws(
+    path: string,
+    handler: WebSocketHandler,
+    options?: WebSocketOptions
+  ): this {
+    this.server.ws(this.prefix + path, handler, options);
     return this;
   }
 }

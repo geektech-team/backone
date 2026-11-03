@@ -45,12 +45,27 @@ describe('initProject', () => {
       expect(pkg.dependencies['@geektech/backone']).toBeDefined();
       expect(pkg.scripts.dev).toBe('bun --watch src/index.ts');
 
-      // src/index.ts 包含 createServer
+      // 所有模板通过 Application 类组装
       const index = readFileSync(
         join(result.projectPath, 'src/index.ts'),
         'utf-8'
       );
-      expect(index).toContain('createServer');
+      expect(index).toContain('new Application');
+      expect(existsSync(join(result.projectPath, 'src/app.ts'))).toBe(true);
+      const feature =
+        template === 'rest-api'
+          ? 'users'
+          : template === 'websocket'
+            ? 'chat'
+            : 'home';
+      expect(
+        existsSync(
+          join(
+            result.projectPath,
+            `src/modules/${feature}/${feature}-module.ts`
+          )
+        )
+      ).toBe(true);
     });
   }
 
@@ -67,7 +82,7 @@ describe('initProject', () => {
     );
   });
 
-  it('rest-api template includes route group', async () => {
+  it('rest-api template groups its business objects inside a module', async () => {
     const name = 'test-rest-group';
     const result = await initProject({
       name,
@@ -79,8 +94,12 @@ describe('initProject', () => {
       join(result.projectPath, 'src/index.ts'),
       'utf-8'
     );
-    expect(index).toContain('app.group');
-    expect(index).toContain('/api');
+    expect(index).toContain('new Application');
+    expect(
+      existsSync(
+        join(result.projectPath, 'src/modules/users/users-repository.ts')
+      )
+    ).toBe(true);
   });
 
   it('initializes an existing empty directory without confirmation', async () => {

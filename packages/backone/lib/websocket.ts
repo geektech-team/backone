@@ -4,6 +4,7 @@
  */
 
 import type { ServerWebSocket } from 'bun';
+import type { Handler } from './types';
 
 /** BackOne WebSocket 连接（Bun ServerWebSocket 的直接别名） */
 export type BackOneWebSocket<T = unknown> = ServerWebSocket<T>;
@@ -20,7 +21,13 @@ export interface WebSocketHandler<T = unknown> {
   drain?(ws: BackOneWebSocket<T>): void;
 }
 
+/** 仅在 WebSocket 升级前执行的局部中间件。 */
+export interface WebSocketOptions {
+  middlewares?: readonly Handler[];
+}
+
 /** 升级时附加到 WebSocket 连接的数据，用于路径分发 */
 export interface WebSocketData {
   path: string;
+  state?: Record<string, unknown>;
 }

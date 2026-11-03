@@ -65,7 +65,15 @@ describe('package contract', () => {
     const { createServer, HttpError } = (await import(
       new URL('../dist/index.js', import.meta.url).href
     )) as typeof import('../lib/index');
-    const { Controller, Get, registerControllers } = (await import(
+    const {
+      Controller,
+      Get,
+      Validate,
+      Status,
+      Header,
+      Module,
+      registerModules,
+    } = (await import(
       new URL('../dist/decorators/index.js', import.meta.url).href
     )) as typeof import('../lib/decorators');
     @Controller('/built')
@@ -73,14 +81,49 @@ describe('package contract', () => {
       @Get() get() {
         throw new HttpError(409, 'Built package conflict');
       }
+
+      @Get('/validation')
+      @Validate({
+        query: {
+          parse() {
+            throw new Error('invalid query');
+          },
+        },
+      })
+      validation() {
+        return 'must not execute';
+      }
+
+      @Get('/system')
+      @Header('x-built', 'yes')
+      @Status(201)
+      system() {
+        return { works: true };
+      }
+    }
+    @Module<BuiltModule>({ controllers: (module) => [module.controller] })
+    class BuiltModule {
+      readonly controller = new Built();
     }
     const app = createServer();
-    registerControllers(app, [new Built()]);
+    const registration = registerModules(app, [new BuiltModule()]);
+    expect(registration.modules).toEqual([{ name: 'BuiltModule', prefix: '' }]);
+    expect(registration.routes).toHaveLength(3);
     const response = await app.handle(new Request('http://localhost/built'));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: 'Built package conflict',
       status: 409,
     });
+    expect(
+      (await app.handle(new Request('http://localhost/built/validation')))
+        .status
+    ).toBe(400);
+    const system = await app.handle(
+      new Request('http://localhost/built/system')
+    );
+    expect(system.status).toBe(201);
+    expect(system.headers.get('x-built')).toBe('yes');
+    expect(await system.json()).toEqual({ works: true });
   });
 });

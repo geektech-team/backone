@@ -33,5 +33,40 @@ describe('Controller playground', () => {
         )
       ).status
     ).toBe(404);
+    const tokenResponse = await app.handle(
+      new Request('http://localhost/controller-api/session', { method: 'POST' })
+    );
+    const session = (await tokenResponse.json()) as { token: string };
+    expect(
+      (
+        await app.handle(
+          new Request('http://localhost/controller-api/policy/profile')
+        )
+      ).status
+    ).toBe(401);
+    const headers = { authorization: `Bearer ${session.token}` };
+    const first = await app.handle(
+      new Request('http://localhost/controller-api/policy/cached?q=demo', {
+        headers,
+      })
+    );
+    const second = await app.handle(
+      new Request('http://localhost/controller-api/policy/cached?q=demo', {
+        headers,
+      })
+    );
+    expect(await first.json()).toEqual({
+      user: 'demo-user',
+      query: 'demo',
+      calls: 1,
+    });
+    expect(await second.json()).toEqual({
+      user: 'demo-user',
+      query: 'demo',
+      calls: 1,
+    });
+    expect(first.headers.get('x-request-id')).not.toBe(
+      second.headers.get('x-request-id')
+    );
   });
 });

@@ -36,7 +36,10 @@ const REPO_ROOT = resolve(import.meta.dir, '..');
 
 const PACKAGES: Record<string, { dir: string; name: string }> = {
   backone: { dir: 'packages/backone', name: '@geektech/backone' },
-  'backone-utils': { dir: 'packages/backone-utils', name: '@geektech/backone-utils' },
+  'backone-utils': {
+    dir: 'packages/backone-utils',
+    name: '@geektech/backone-utils',
+  },
   'backone-cli': { dir: 'packages/backone-cli', name: '@geektech/backone-cli' },
 };
 
@@ -96,7 +99,9 @@ function parseArgs(argv: string[]): CliArgs {
         }
         args.pkg = normalizePackage(value);
         if (!args.pkg) {
-          fail(`未知包：${value}（可选 backone | backone-utils | backone-cli）`);
+          fail(
+            `未知包：${value}（可选 backone | backone-utils | backone-cli）`
+          );
         }
         break;
       }
@@ -143,7 +148,10 @@ function fail(message: string): never {
 }
 
 function normalizePackage(raw: string): string | null {
-  const key = raw.trim().toLowerCase().replace(/^@geektech\//, '');
+  const key = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^@geektech\//, '');
   return key in PACKAGES ? key : null;
 }
 
@@ -157,7 +165,11 @@ function bumpVersion(version: string, type: BumpType): string {
   if (!match) {
     fail(`无法解析语义化版本号：${version}`);
   }
-  const [major, minor, patch] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const [major, minor, patch] = [
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+  ];
   switch (type) {
     case 'major':
       return `${major + 1}.0.0`;
@@ -200,25 +212,63 @@ function syncFile(target: SyncTarget, dryRun: boolean): void {
   console.log(`      ${target.from} -> ${target.to}`);
 }
 
-function syncForBump(pkgKey: string, oldVersion: string, newVersion: string, dryRun: boolean): void {
+function syncForBump(
+  pkgKey: string,
+  oldVersion: string,
+  newVersion: string,
+  dryRun: boolean
+): void {
   const targets: SyncTarget[] = [];
 
   if (pkgKey === 'backone') {
     targets.push(
-      { file: 'packages/backone/package.json', from: `"version": "${oldVersion}"`, to: `"version": "${newVersion}"` },
-      { file: 'packages/backone/lib/index.ts', from: `export const version = '${oldVersion}';`, to: `export const version = '${newVersion}';` },
+      {
+        file: 'packages/backone/package.json',
+        from: `"version": "${oldVersion}"`,
+        to: `"version": "${newVersion}"`,
+      },
+      {
+        file: 'packages/backone/lib/index.ts',
+        from: `export const version = '${oldVersion}';`,
+        to: `export const version = '${newVersion}';`,
+      },
       // backone-cli 模板对 @geektech/backone 的 caret 范围随 backone 版本同步
-      { file: 'packages/backone-cli/src/templates.ts', from: `'@geektech/backone': '^${oldVersion}',`, to: `'@geektech/backone': '^${newVersion}',` }
+      {
+        file: 'packages/backone-cli/src/templates.ts',
+        from: `'@geektech/backone': '^${oldVersion}',`,
+        to: `'@geektech/backone': '^${newVersion}',`,
+      }
     );
   } else if (pkgKey === 'backone-utils') {
     targets.push(
-      { file: 'packages/backone-utils/package.json', from: `"version": "${oldVersion}"`, to: `"version": "${newVersion}"` },
-      { file: 'packages/backone-utils/lib/index.ts', from: `export const version = '${oldVersion}';`, to: `export const version = '${newVersion}';` }
+      {
+        file: 'packages/backone-utils/package.json',
+        from: `"version": "${oldVersion}"`,
+        to: `"version": "${newVersion}"`,
+      },
+      {
+        file: 'packages/backone-utils/lib/index.ts',
+        from: `export const version = '${oldVersion}';`,
+        to: `export const version = '${newVersion}';`,
+      },
+      {
+        file: 'packages/backone-cli/src/templates.ts',
+        from: `'@geektech/backone-utils': '^${oldVersion}'`,
+        to: `'@geektech/backone-utils': '^${newVersion}'`,
+      }
     );
   } else if (pkgKey === 'backone-cli') {
     targets.push(
-      { file: 'packages/backone-cli/package.json', from: `"version": "${oldVersion}"`, to: `"version": "${newVersion}"` },
-      { file: 'packages/backone-cli/src/cli.ts', from: `const VERSION = '${oldVersion}';`, to: `const VERSION = '${newVersion}';` }
+      {
+        file: 'packages/backone-cli/package.json',
+        from: `"version": "${oldVersion}"`,
+        to: `"version": "${newVersion}"`,
+      },
+      {
+        file: 'packages/backone-cli/src/cli.ts',
+        from: `const VERSION = '${oldVersion}';`,
+        to: `const VERSION = '${newVersion}';`,
+      }
     );
   }
 
@@ -240,7 +290,9 @@ function main(): void {
   const publishRequested = args.publish || (bumpRequested && !args.noPublish);
 
   if (!bumpRequested && !buildRequested && !publishRequested) {
-    fail('请至少指定一个操作：--bump <major|minor|patch> / --build / --publish');
+    fail(
+      '请至少指定一个操作：--bump <major|minor|patch> / --build / --publish'
+    );
   }
 
   const pkg = PACKAGES[args.pkg];
@@ -250,13 +302,17 @@ function main(): void {
     console.log('[演练模式 --dry-run，不会写入或发布]');
   }
 
-  const totalSteps = [bumpRequested, buildRequested, publishRequested].filter(Boolean).length;
+  const totalSteps = [bumpRequested, buildRequested, publishRequested].filter(
+    Boolean
+  ).length;
   let step = 0;
 
   if (args.bump) {
     step += 1;
     const newVersion = bumpVersion(version, args.bump);
-    console.log(`\n== ${step}/${totalSteps} 升级版本号：${version} -> ${newVersion}（${args.bump}）==`);
+    console.log(
+      `\n== ${step}/${totalSteps} 升级版本号：${version} -> ${newVersion}（${args.bump}）==`
+    );
     syncForBump(args.pkg, version, newVersion, args.dryRun);
     if (args.dryRun) {
       console.log('  [dry-run] 运行 bun install 同步 lockfile');

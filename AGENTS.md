@@ -54,6 +54,13 @@ Bun-first。测试用 `bun:test`（服务端场景，无需 DOM preload）。
 
 ## 开发约定
 
+- 对象是业务代码的首选组织方式：Application 组装并拥有资源，Module 按业务
+  边界组织对象；同一业务代码放在 modules/<feature>/，使用 @Module 声明并
+  由 registerModules 显式挂载。Controller /
+  Gateway 声明路由，Service 承担业务规则，Repository 组合 Database / Table。
+  依赖用构造函数显式注入，请求状态放在 Context，避免模块级可变业务单例。
+  数据库事务内重新创建绑定 tx 的 Repository；借用连接的 Repository 不负责关闭。
+  新模板与 demo 均使用类，框架函数式 API 保持兼容；不要引入自动扫描或反射 DI。
 - 使用 TypeScript strict 风格，避免新增 `any`；公共 API 优先用泛型、显式
   接口或受限记录类型表达。
 - 面向对象关系需要清晰（依赖、关联、聚合、组合、继承或实现之一），遵守

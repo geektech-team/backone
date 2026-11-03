@@ -1,311 +1,144 @@
-/**
- * 项目模板定义。
- * 每个模板是一组 TemplateFile，内容用 {{name}} 占位项目名。
- */
-
+/** Class based scaffolds, composed explicitly without runtime dependencies. */
 import type { TemplateFile, TemplateName } from './types';
+import {
+  homeController,
+  homeModule,
+  index,
+  minimalApp,
+} from './template-common';
+import { restFiles } from './template-rest';
+import { websocketFiles } from './template-websocket';
 
-const GITIGNORE = `node_modules
-dist
-.env
-.DS_Store
-`;
-
-function tsconfig(): string {
-  return JSON.stringify(
-    {
-      compilerOptions: {
-        target: 'ESNext',
-        module: 'ESNext',
-        moduleResolution: 'bundler',
-        strict: true,
-        esModuleInterop: true,
-        skipLibCheck: true,
-        forceConsistentCasingInFileNames: true,
-        resolveJsonModule: true,
-        isolatedModules: true,
-        noEmit: true,
-        types: ['bun-types'],
-      },
-      include: ['src'],
-    },
-    null,
-    2
-  );
-}
-
-function packageJson(
-  name: string,
-  extra: Record<string, unknown> = {}
-): string {
-  return JSON.stringify(
-    {
-      name,
-      version: '0.1.0',
-      type: 'module',
-      scripts: {
-        dev: 'bun --watch src/index.ts',
-        start: 'bun src/index.ts',
-      },
-      dependencies: {
-        '@geektech/backone': '^0.2.0',
-      },
-      ...extra,
-    },
-    null,
-    2
-  );
-}
-
-// ---- minimal ----
-
-const minimalIndex = `import { createServer } from '@geektech/backone';
-
-const app = createServer({ port: 3000 });
-
-app.get('/', () => 'Hello, BackOne!');
-
-const port = await app.listen();
-console.log(\`Server running at http://127.0.0.1:\${port}\`);
-`;
-
-const minimalReadme = (name: string) => `# ${name}
-
-Minimal BackOne application.
-
-## Getting Started
-
-\`\`\`bash
-bun install
-bun run dev
-\`\`\`
-
-Open http://127.0.0.1:3000
-
-## Scripts
-
-- \`bun run dev\` — Start development server with hot reload
-- \`bun run start\` — Start production server
-`;
-
-// ---- rest-api ----
-
-const restApiIndex = `import { createServer, HttpError } from '@geektech/backone';
-
-const app = createServer({ port: 3000, development: true });
-
-app.useLogger();
-app.useCors();
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
-let users: User[] = [
-  { id: 1, name: 'Alice', email: 'alice@example.com' },
-  { id: 2, name: 'Bob', email: 'bob@example.com' },
-];
-let nextId = 3;
-
-app.group('/api', (api) => {
-  api.get('/users', () => users);
-
-  api.get<{ id: string }>('/users/:id', (ctx) => {
-    const user = users.find((u) => u.id === Number(ctx.params.id));
-    if (!user) throw new HttpError(404, 'User not found');
-    return user;
-  });
-
-  api.post('/users', async (ctx) => {
-    const body = await ctx.bodyJson<{ name: string; email: string }>();
-    const user: User = { id: nextId++, name: body.name, email: body.email };
-    users.push(user);
-    return ctx.json(user, 201);
-  });
-
-  api.delete<{ id: string }>('/users/:id', (ctx) => {
-    const idx = users.findIndex((u) => u.id === Number(ctx.params.id));
-    if (idx === -1) throw new HttpError(404, 'User not found');
-    users.splice(idx, 1);
-    return ctx.noContent();
-  });
-});
-
-const port = await app.listen();
-console.log(\`REST API running at http://127.0.0.1:\${port}\`);
-`;
-
-const restApiReadme = (name: string) => `# ${name}
-
-BackOne REST API template with in-memory user CRUD.
-
-## Getting Started
-
-\`\`\`bash
-bun install
-bun run dev
-\`\`\`
-
-## API Endpoints
-
-- \`GET /api/users\` — List all users
-- \`GET /api/users/:id\` — Get a user by ID
-- \`POST /api/users\` — Create a user (JSON body: name, email)
-- \`DELETE /api/users/:id\` — Delete a user
-
-## Example
-
-\`\`\`bash
-curl http://127.0.0.1:3000/api/users
-curl -X POST http://127.0.0.1:3000/api/users \\
-  -H 'Content-Type: application/json' \\
-  -d '{"name":"Charlie","email":"charlie@example.com"}'
-\`\`\`
-`;
-
-// ---- websocket ----
-
-const websocketIndex = `import { createServer } from '@geektech/backone';
-import type { BackOneWebSocket } from '@geektech/backone';
-
-const app = createServer({ port: 3000, development: true });
-
-app.serveStatic('/', './public');
-
-const clients = new Set<BackOneWebSocket>();
-
-app.ws('/chat', {
-  open(ws) {
-    clients.add(ws);
-    broadcast(\`System: a new user joined (\${clients.size} online)\`);
-  },
-  message(_ws, message) {
-    broadcast(\`User: \${String(message)}\`);
-  },
-  close(ws) {
-    clients.delete(ws);
-    broadcast(\`System: a user left (\${clients.size} online)\`);
-  },
-});
-
-function broadcast(message: string) {
-  for (const client of clients) {
-    client.send(message);
+function baseFiles(name: string, withDatabase = false): TemplateFile[] {
+  const dependencies: Record<string, string> = {
+    '@geektech/backone': '^0.4.0',
+  };
+  if (withDatabase) {
+    Object.assign(dependencies, { '@geektech/backone-utils': '^0.5.2' });
   }
+  return [
+    {
+      path: 'package.json',
+      content: JSON.stringify(
+        {
+          name,
+          version: '0.1.0',
+          type: 'module',
+          scripts: {
+            dev: 'bun --watch src/index.ts',
+            start: 'bun src/index.ts',
+            typecheck: 'tsc --noEmit',
+          },
+          dependencies,
+          devDependencies: { '@types/bun': '^1.3.14', typescript: '^5.3.3' },
+          engines: { bun: '>=1.3.10' },
+        },
+        null,
+        2
+      ),
+    },
+    {
+      path: 'tsconfig.json',
+      content: JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'ESNext',
+            module: 'ESNext',
+            moduleResolution: 'bundler',
+            strict: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+            forceConsistentCasingInFileNames: true,
+            resolveJsonModule: true,
+            isolatedModules: true,
+            noEmit: true,
+            types: ['bun'],
+          },
+          include: ['src'],
+        },
+        null,
+        2
+      ),
+    },
+    { path: 'src/index.ts', content: index },
+    {
+      path: '.gitignore',
+      content: 'node_modules\ndist\n.env\n*.sqlite\n*.sqlite-*\n.DS_Store\n',
+    },
+  ];
 }
 
-const port = await app.listen();
-console.log(\`WebSocket chat running at http://127.0.0.1:\${port}\`);
-`;
+function readme(name: string, template: TemplateName): TemplateFile {
+  const details: Record<TemplateName, string> = {
+    minimal:
+      'Application owns a BackOneServer and registers HomeModule, which groups HomeController. GET / returns Hello, BackOne!.',
+    'rest-api': `Application → UsersModule → UsersController → UsersService → UsersRepository → Database/Table.
+All users business files live together in src/modules/users/.
 
-const websocketHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BackOne WebSocket Chat</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { color: #333; }
-    #messages { height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #fafafa; }
-    #messages div { padding: 0.25rem 0; border-bottom: 1px solid #eee; }
-    .input-row { display: flex; gap: 0.5rem; }
-    #input { flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
-    #send { padding: 0.5rem 1.5rem; border: none; border-radius: 4px; background: #333; color: white; cursor: pointer; }
-    #send:hover { background: #555; }
-  </style>
-</head>
-<body>
-  <h1>BackOne WebSocket Chat</h1>
-  <div id="messages"></div>
-  <div class="input-row">
-    <input id="input" placeholder="Type a message..." autofocus />
-    <button id="send">Send</button>
-  </div>
-  <script>
-    const ws = new WebSocket(\`ws://\${location.host}/chat\`);
-    const messages = document.getElementById('messages');
-    const input = document.getElementById('input');
-    const send = document.getElementById('send');
+GET/POST /api/users and GET/PUT/DELETE /api/users/:id demonstrate SQLite CRUD.
+POST and PUT accept JSON with non-empty name and email strings. Invalid input returns 400;
+missing users return 404. Validate, Status, Header and Timeout declare HTTP policy.
+The service handles business rules; the repository has no HTTP dependency.
 
-    ws.onmessage = (e) => {
-      const div = document.createElement('div');
-      div.textContent = e.data;
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
-    };
+SQLite defaults to :memory: and resets on restart. For persistence run
+DATABASE_URL=./users.sqlite bun run dev, or new Application({ databaseUrl: './users.sqlite' }).
+Only SQLite is configured by this template. Seed users are inserted into an empty table.
+Repositories borrow connections; Application closes its owned database.
+Transactions create repositories bound to the transaction Database.`,
+    websocket: `Application owns a BackOneServer and registers ChatModule.
+ChatModule groups ChatGateway and its injected ChatService in src/modules/chat/.
+GET / serves public/index.html, WS /chat broadcasts messages to connected clients.
+Open http://127.0.0.1:3000 in several browser tabs. Connection state belongs to ChatService.`,
+  };
+  return {
+    path: 'README.md',
+    content: `# ${name}
 
-    ws.onclose = () => {
-      const div = document.createElement('div');
-      div.textContent = 'Disconnected. Refresh to reconnect.';
-      div.style.color = '#999';
-      messages.appendChild(div);
-    };
+${details[template]}
 
-    const sendMsg = () => {
-      if (input.value.trim()) {
-        ws.send(input.value);
-        input.value = '';
-      }
-    };
-    send.onclick = sendMsg;
-    input.onkeydown = (e) => { if (e.key === 'Enter') sendMsg(); };
-  </script>
-</body>
-</html>
-`;
+Requires Bun >=1.3.10 and TypeScript >=5.2.
+Use standard decorators; leave experimentalDecorators and emitDecoratorMetadata disabled.
 
-const websocketReadme = (name: string) => `# ${name}
+Run bun install, bun run typecheck, then bun run dev.
+Start production with bun run start.
 
-BackOne WebSocket chat template with a browser client.
-
-## Getting Started
-
-\`\`\`bash
-bun install
-bun run dev
-\`\`\`
-
-Open http://127.0.0.1:3000 in multiple browser tabs to chat.
-
-## How it works
-
-- \`GET /\` — Serves the chat UI from \`./public/index.html\`
-- \`WS /chat\` — WebSocket endpoint, broadcasts messages to all connected clients
-`;
-
-// ---- 模板注册表 ----
+src/index.ts creates new Application(). Application is the composition and resource owner.
+Business code is grouped by feature under src/modules/<feature>/.
+@Module declares module composition; registerModules mounts explicit instances.
+Dependencies are passed through constructors; modules do not initialize or close implicitly.
+Import src/app.ts without opening ports; construct an application and await initialize()
+to test server.handle(new Request(...)) without listening. start() initializes and listens.
+Concurrent initialize/start calls share their work. stop() waits for initialization/start,
+closes owned resources, and is safe to repeat. Stopped applications cannot restart.
+Controllers/services/repositories are reused; request state belongs in ctx.
+`,
+  };
+}
 
 export const TEMPLATES: Record<TemplateName, (name: string) => TemplateFile[]> =
   {
     minimal: (name) => [
-      { path: 'package.json', content: packageJson(name) },
-      { path: 'tsconfig.json', content: tsconfig() },
-      { path: 'src/index.ts', content: minimalIndex },
-      { path: 'README.md', content: minimalReadme(name) },
-      { path: '.gitignore', content: GITIGNORE },
+      ...baseFiles(name),
+      { path: 'src/app.ts', content: minimalApp },
+      { path: 'src/modules/home/home-controller.ts', content: homeController },
+      { path: 'src/modules/home/home-module.ts', content: homeModule },
+      readme(name, 'minimal'),
     ],
     'rest-api': (name) => [
-      { path: 'package.json', content: packageJson(name) },
-      { path: 'tsconfig.json', content: tsconfig() },
-      { path: 'src/index.ts', content: restApiIndex },
-      { path: 'README.md', content: restApiReadme(name) },
-      { path: '.gitignore', content: GITIGNORE },
+      ...baseFiles(name, true),
+      ...restFiles(),
+      readme(name, 'rest-api'),
     ],
     websocket: (name) => [
-      { path: 'package.json', content: packageJson(name) },
-      { path: 'tsconfig.json', content: tsconfig() },
-      { path: 'src/index.ts', content: websocketIndex },
-      { path: 'public/index.html', content: websocketHtml },
-      { path: 'README.md', content: websocketReadme(name) },
-      { path: '.gitignore', content: GITIGNORE },
+      ...baseFiles(name),
+      ...websocketFiles(),
+      readme(name, 'websocket'),
     ],
   };
 
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateName, string> = {
-  minimal: 'Minimal — single route, zero extras',
-  'rest-api': 'REST API — CRUD example with route groups and middleware',
-  websocket: 'WebSocket — real-time chat with browser client',
+  minimal: 'Minimal — Application, HomeModule and HomeController',
+  'rest-api':
+    'REST API — UsersModule with Controller, Service, Repository and SQLite CRUD',
+  websocket: 'WebSocket — ChatModule with Gateway, Service and browser client',
 };

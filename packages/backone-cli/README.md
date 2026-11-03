@@ -1,65 +1,103 @@
 # @geektech/backone-cli
 
-CLI scaffolding tool for [BackOne](https://github.com/geektech-team/backone/tree/main/packages/backone) server applications. Zero dependencies, Bun-native.
-
-## Installation
-
-```bash
-bun add -d @geektech/backone-cli
-```
-
-Or run directly without installing:
-
-```bash
-bunx @geektech/backone-cli init my-app
-```
+Class-based scaffolding for [BackOne](https://github.com/geektech-team/backone/tree/main/packages/backone) applications. The CLI has zero runtime dependencies and runs on Bun.
 
 ## Usage
 
 ```bash
-# Create a new project (interactive template selection)
-backone init my-app
-
-# Create with a specific template
-backone init my-app --template rest-api
-
-# Create without installing dependencies
-backone init my-app --no-install
-
-# Create a Controller REST API (Bun >=1.3.10)
-backone init my-api --template rest-api --style controller
-
-# Show version / help
-backone --version
-backone --help
+bunx @geektech/backone-cli init my-app
+bunx @geektech/backone-cli init my-api --template rest-api
+bunx @geektech/backone-cli init my-chat --template websocket --no-install
 ```
 
-Initialization also works in an existing directory. Each existing template
-file prompts `Overwrite? (y/N)`: enter `y` or `yes` to overwrite it, or press
-Enter to keep it. Skipped files and files outside the template are preserved;
-missing template files are created. Without an interactive terminal, existing
-files are kept automatically.
+Or install with `bun add -d @geektech/backone-cli` and run `backone init`.
+All templates use business modules, classes and standard decorators. Requirements: Bun >=1.3.10,
+TypeScript >=5.2. Leave `experimentalDecorators` and `emitDecoratorMetadata`
+disabled. Run `bun run typecheck` and `bun run dev` after installation.
 
-`--style` accepts `functional` (default) or `controller`. Controller style is
-available for `rest-api`; specifying only `--style controller` selects that
-template automatically. Unsupported combinations and missing option values
-fail before files are written.
+| Template    | Objects                                                                   | Runtime packages in the generated application |
+| ----------- | ------------------------------------------------------------------------- | --------------------------------------------- |
+| `minimal`   | Application, HomeModule, HomeController                                   | backone                                       |
+| `rest-api`  | Application, UsersModule, Controller, Service, Repository, Database/Table | backone, backone-utils                        |
+| `websocket` | Application, ChatModule, Gateway, Service, browser client                 | backone                                       |
 
-Controller projects include a testable `createApp()` factory, `controllers/`,
-`services/`, and `middlewares/`. Run `bun run typecheck` after installation.
-GET/POST `/api/users` and GET/PUT/DELETE `/api/users/:id` demonstrate CRUD,
-explicit service injection, request IDs, JSON validation and HTTP errors.
-They use standard decorators with `experimentalDecorators` and
-`emitDecoratorMetadata` disabled. Controllers and services are reused; store
-request state in `ctx`.
+Each business lives in `modules/<feature>/`. Its `@Module` class declares Controller,
+Gateway and imported module instances through selectors, and Application calls
+`registerModules` to mount them. Dependencies are wired through constructors.
+Application owns the server and resources; Controllers/Gateways handle protocols, Services handle business rules,
+and Repositories handle storage. Request state belongs in `ctx` or `ws.data`.
+See the [architecture guide](../../docs/object-first.md).
 
-## Templates
+## Options and migration
 
-| Template    | Description                                   |
-| ----------- | --------------------------------------------- |
-| `minimal`   | Single route, zero extras                     |
-| `rest-api`  | CRUD example with route groups and middleware |
-| `websocket` | Real-time chat with browser client            |
+- `--template minimal|rest-api|websocket`: choose a template. Without it, a terminal
+  prompts for a choice; non-interactive usage selects `minimal`.
+- `--no-install`: skip `bun install`.
+- `--style controller`: optional explicit alias for the unified class style; works
+  with all templates. Used alone, it still selects `rest-api` for compatibility.
+- `--style functional`: no longer generates a project; reports a migration error
+  before writing files. Omit `--style` to use the class template. BackOne's
+  functional framework APIs remain available.
+- `--version` / `--help`: show version or help.
+
+Initialization works in existing directories. Each existing template file prompts
+`Overwrite? (y/N)`: `y` or `yes` overwrites; Enter keeps it. Skipped files and files
+outside the template remain, and missing files are created. Without a terminal,
+existing files are kept automatically. Changing a template does not remove old
+files; review any retained files when migrating an existing project.
+
+## Generated REST application
+
+```text
+src/
+  index.ts
+  app.ts
+  modules/users/
+    users-module.ts
+    users-controller.ts
+    users-service.ts
+    users-repository.ts
+    user.ts
+    user-schema.ts
+  middlewares/request-id.ts
+```
+
+GET/POST `/api/users` and GET/PUT/DELETE `/api/users/:id` demonstrate CRUD. POST and
+PUT require non-empty `name` and `email`. The Controller uses `@Validate` and
+`validatedBody`, `@Status(201/204)`, `@Header` and `@Timeout(5000)`. Timeout limits
+response waiting and does not cancel ongoing work. Services use domain errors;
+Controllers map them to HTTP responses. Repositories compose Database/Table.
+UsersModule constructs the repository, service and controller explicitly. Its
+initialize method is called by Application; @Module does not initialize or close
+resources automatically. Shared request middleware remains in middlewares/.
+
+`src/app.ts` exports the application class:
+
+```ts
+import { Application } from './src/app';
+
+const application = new Application({ databaseUrl: ':memory:' });
+try {
+  await application.initialize();
+  const response = await application.server.handle(
+    new Request('http://localhost/api/users')
+  );
+  console.log(await response.json());
+} finally {
+  await application.stop();
+}
+```
+
+Constructors do not listen or create tables. `start()` automatically initializes
+and returns the listening port. Initialization is shared by concurrent callers;
+`stop()` is idempotent and closes owned resources. A stopped application cannot
+restart; construct another instance. Each default REST instance owns an in-memory
+SQLite database, cleared on shutdown. Use `databaseUrl: './app.db'` for persistence.
+The generated DDL targets SQLite; other database dialects need their own DDL.
+
+The WebSocket template serves `public/index.html` and registers `/chat` through a
+ChatModule and ChatGateway. ChatService owns its instance's connected clients and broadcasts
+messages. Open multiple tabs at `http://127.0.0.1:3000` to try it.
 
 ## Programmatic API
 
@@ -67,27 +105,24 @@ request state in `ctx`.
 import { initProject } from '@geektech/backone-cli';
 
 await initProject({
-  name: 'my-app',
+  name: 'my-api',
   template: 'rest-api',
-  style: 'controller', // Optional; defaults to 'functional'
-  skipInstall: false,
+  skipInstall: true,
   cwd: process.cwd(),
-  // Optional: decide for each existing file (path relative to the project root)
   confirmOverwrite: async (filePath) => filePath === 'README.md',
 });
 ```
 
-`confirmOverwrite` may return a boolean or a promise. If omitted, the API uses
-the same terminal prompt and non-interactive behavior as the CLI.
+`confirmOverwrite` accepts a boolean or promise. If omitted, the same terminal
+prompt and non-interactive preservation behavior apply. `TEMPLATES` exposes the
+same class-based file generators used by `initProject`.
 
 ## Development
 
 ```bash
-bun test          # Run tests
-bun run build     # Build dist
-bun run lint      # ESLint
+bun test
+bun run build
+bun run lint
 ```
-
-## License
 
 MIT

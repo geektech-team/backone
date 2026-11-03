@@ -128,6 +128,42 @@ export function renderUtilsDb(_ctx: PageContext): VNode | VNode[] {
       inline('Table'),
       '（单表 CRUD）。',
     ]),
+    h2('推荐：Repository 组合数据库'),
+    p(
+      '业务查询和写入放在 Repository 类，构造函数传入 Database，内部组合 Table；Service 注入 Repository，Controller 注入 Service。同一业务的这些类就近放在 modules/<feature>/，由 @Module 声明组成。连接由 Application 所有并关闭，Repository 不关闭借用的连接。'
+    ),
+    codeblock(`import { Database, type Table } from '@geektech/backone-utils';
+
+interface Note { id: number; title: string }
+class NotesRepository {
+  private readonly notes: Table<Note>;
+  constructor(database: Database) {
+    this.notes = database.table<Note>('notes');
+  }
+  list() {
+    return this.notes.findMany({ orderBy: { id: 'asc' } });
+  }
+  create(title: string) {
+    return this.notes.insert({ title });
+  }
+}
+
+const database = new Database();
+try {
+  await database.raw(\`CREATE TABLE notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL
+  )\`);
+  await database.transaction(async (tx) => {
+    const notes = new NotesRepository(tx);
+    await notes.create('Hello');
+  });
+  console.log(await new NotesRepository(database).list());
+} finally {
+  await database.close();
+}`),
+    p(
+      '事务内用 tx 创建 Repository，保证查询绑定事务连接。不要在回调中复用事务外的 Repository。以上 SQLite DDL 在其他方言需要替换。'
+    ),
     h2('建立连接'),
     codeblock(
       [

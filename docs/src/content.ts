@@ -1,5 +1,7 @@
 import type { VNode } from '@geektech/tsone';
 import { renderHome } from './pages/home';
+import { renderBackoneArchitecture } from './pages/architecture';
+import { renderBackoneModules } from './pages/modules';
 import { renderBackoneDecorators } from './pages/decorators';
 import {
   renderBackoneOverview,
@@ -70,7 +72,7 @@ export const sections: DocSection[] = [
     id: 'backone',
     label: 'BackOne 框架',
     packageName: '@geektech/backone',
-    version: '0.1.0',
+    version: '0.3.0',
     pages: [
       {
         route: '/backone',
@@ -87,10 +89,24 @@ export const sections: DocSection[] = [
         render: renderBackoneQuickstart,
       },
       {
+        route: '/backone/architecture',
+        title: '对象优先开发',
+        description:
+          'Application 组装业务 Module，由 Module 组合 Controller、Gateway、Service、Repository，管理资源生命周期。',
+        render: renderBackoneArchitecture,
+      },
+      {
+        route: '/backone/modules',
+        title: '业务模块',
+        description:
+          '@Module 组织同一业务的 Controller、Gateway、Service、Repository，支持显式导入与统一注册。',
+        render: renderBackoneModules,
+      },
+      {
         route: '/backone/server',
         title: '服务端与路由',
         description:
-          'createServer 选项、路由注册、路径参数、路由组、usePrefix 与生命周期。',
+          'BackOneServer、兼容函数式 API、路由注册、路径参数、路由组、usePrefix 与生命周期。',
         render: renderBackoneServer,
       },
       {
@@ -126,7 +142,7 @@ export const sections: DocSection[] = [
     id: 'utils',
     label: 'BackOne Utils',
     packageName: '@geektech/backone-utils',
-    version: '0.5.0',
+    version: '0.5.2',
     pages: [
       {
         route: '/utils',
@@ -190,7 +206,7 @@ export const sections: DocSection[] = [
     id: 'cli',
     label: 'BackOne CLI',
     packageName: '@geektech/backone-cli',
-    version: '0.2.0',
+    version: '0.4.0',
     pages: [
       {
         route: '/cli',

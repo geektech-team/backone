@@ -38,43 +38,72 @@ Supported database dialects: **SQLite**, **PostgreSQL**, **MySQL**, **MariaDB**.
 
 ## Quick Start
 
+Keep a feature's Repository, Service, Controller, models and schemas together in
+`modules/<feature>/`. A BackOne `@Module` class composes the feature objects;
+Application injects Database and owns its shutdown. Module registration does not
+initialize or close connections automatically.
+
+Compose Database/Table inside a business Repository and inject it into a Service.
+The Repository borrows its connection; the owning Application closes it.
+
 ```ts
-import { DatabaseManager } from '@geektech/backone-utils';
+import { Database, type Table } from '@geektech/backone-utils';
 
 interface User {
   id: number;
   name: string;
-  age: number | null;
 }
 
-const db = new DatabaseManager();
-db.register('primary', { url: process.env.DATABASE_URL }); // postgres://... / mysql://...
-db.register('audit', { url: ':memory:' }); // sqlite in-memory
+class UsersRepository {
+  private readonly users: Table<User>;
 
-const users = db.get('primary').table<User>('users');
+  constructor(database: Database) {
+    this.users = database.table<User>('users');
+  }
 
-const created = await users.insert({ name: 'alice', age: 30 });
-const list = await users.findMany({
-  where: { age: { gte: 18 }, OR: [{ name: { like: 'a%' } }, { city: 'x' }] },
-  orderBy: { id: 'desc' },
-  limit: 20,
-});
-await users.update({ age: 31 }, { name: 'alice' });
-await users.delete({ name: 'alice' });
+  list(): Promise<User[]> {
+    return this.users.findMany({ orderBy: { id: 'asc' } });
+  }
 
-await db.close();
+  create(name: string): Promise<User | null> {
+    return this.users.insert({ name });
+  }
+}
+
+const database = new Database({ url: ':memory:' });
+try {
+  await database.raw(`CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+  )`);
+  const users = new UsersRepository(database);
+  await users.create('Alice');
+  console.log(await users.list());
+
+  await database.transaction(async (tx) => {
+    const transactionalUsers = new UsersRepository(tx);
+    await transactionalUsers.create('Bob');
+  });
+} finally {
+  await database.close();
+}
 ```
+
+Create a Repository with tx inside a transaction so its operations use that
+transaction connection. This DDL targets SQLite; other dialects need their own
+DDL. An Application can own DatabaseManager for multiple connections. See the
+[architecture guide](../../docs/object-first.md) for the full layering pattern.
 
 ## Database Manager (multi-db)
 
-| Method | Description |
-| --- | --- |
-| `register(name, options)` | Register a named connection and return its `Database` |
-| `get(name)` | Resolve a registered `Database` (throws `DB_NOT_FOUND` if missing) |
-| `has(name)` | Whether a name is registered |
-| `names()` / `list()` | Registered names / instances |
-| `remove(name)` | Close and remove one database |
-| `close()` | Close all databases |
+| Method                    | Description                                                        |
+| ------------------------- | ------------------------------------------------------------------ |
+| `register(name, options)` | Register a named connection and return its `Database`              |
+| `get(name)`               | Resolve a registered `Database` (throws `DB_NOT_FOUND` if missing) |
+| `has(name)`               | Whether a name is registered                                       |
+| `names()` / `list()`      | Registered names / instances                                       |
+| `remove(name)`            | Close and remove one database                                      |
+| `close()`                 | Close all databases                                                |
 
 `DatabaseManager` errors carry a stable `code`: `DB_ALREADY_REGISTERED`,
 `DB_NOT_FOUND`, `DB_CLOSED`, `DB_MISSING_URL`, `DB_EMPTY_WRITE`,
@@ -86,11 +115,11 @@ await db.close();
 
 ```ts
 interface DbConnectionOptions {
-  name?: string;       // business name (default 'default')
-  url?: string | URL;  // connection string, see examples below
+  name?: string; // business name (default 'default')
+  url?: string | URL; // connection string, see examples below
   dialect?: 'sqlite' | 'postgres' | 'mysql' | 'mariadb'; // inferred from url
-  readonly?: boolean;  // read-only marker (not enforced yet)
-  max?: number;        // pool size (server dialects)
+  readonly?: boolean; // read-only marker (not enforced yet)
+  max?: number; // pool size (server dialects)
   idleTimeout?: number;
   connectionTimeout?: number;
   tls?: boolean | string | Record<string, unknown>;
@@ -129,7 +158,7 @@ await db.close();
 const users = db.get('primary').table<User>('users');
 // custom primary key: db.table<Row>('orders', { primaryKey: 'order_id' })
 
-await users.findById(1);                       // T | null
+await users.findById(1); // T | null
 await users.findOne({ where: { name: 'alice' } });
 await users.findMany({
   where: { age: { between: [18, 30] } },
@@ -141,10 +170,10 @@ await users.findMany({
 await users.count({ status: { in: ['active', 'pending'] } });
 await users.exists({ name: 'alice' });
 
-await users.insert({ name: 'bob', age: 25 });        // inserted row (with auto id)
+await users.insert({ name: 'bob', age: 25 }); // inserted row (with auto id)
 await users.insertMany([{ name: 'a' }, { name: 'b' }]); // { rows, count }
-await users.update({ age: 26 }, { name: 'bob' });     // { count, rows }
-await users.delete({ name: 'bob' });                  // { count, rows }
+await users.update({ age: 26 }, { name: 'bob' }); // { count, rows }
+await users.delete({ name: 'bob' }); // { count, rows }
 ```
 
 Notes:
@@ -181,24 +210,24 @@ where: {
 
 ```ts
 import {
-  Database,          // single-connection wrapper
-  DatabaseManager,   // multi-connection manager
-  createDatabase,    // standalone Database factory
-  Table,             // per-table CRUD handle
-  BackoneDbError,    // typed errors with stable codes
-
-  createId,          // quick ID generation (default uuidv7)
+  Database, // single-connection wrapper
+  DatabaseManager, // multi-connection manager
+  createDatabase, // standalone Database factory
+  Table, // per-table CRUD handle
+  BackoneDbError, // typed errors with stable codes
+  createId, // quick ID generation (default uuidv7)
   createIdGenerator, // strategy-based ID generator factory
-  createCache,       // TTL / LRU cache factory
-  createJwt,         // JWT sign/verify service
-  createHttpClient,  // fetch wrapper with retries/timeouts
+  createCache, // TTL / LRU cache factory
+  createJwt, // JWT sign/verify service
+  createHttpClient, // fetch wrapper with retries/timeouts
   createRateLimiter, // fixed/sliding/token-bucket limiter factory
-  v,                 // schema validator factory (zod style)
-  defineConfig,      // typed config from env (prefix + coercion + fail-fast)
-  EnvSource,         // env read source (Bun.env + process.env)
-  ConfigError,       // config errors with stable codes
-  BackoneError,      // shared error base with stable codes
-  name, version,
+  v, // schema validator factory (zod style)
+  defineConfig, // typed config from env (prefix + coercion + fail-fast)
+  EnvSource, // env read source (Bun.env + process.env)
+  ConfigError, // config errors with stable codes
+  BackoneError, // shared error base with stable codes
+  name,
+  version,
 } from '@geektech/backone-utils';
 ```
 
@@ -207,12 +236,12 @@ import {
 Strategy-based ID generators behind one `IdGenerator` interface
 (`createIdGenerator(strategy)` / `createId(strategy)`, default `uuidv7`):
 
-| Strategy | Description |
-| --- | --- |
-| `uuidv4` | Random UUID (Web Crypto) |
-| `uuidv7` | Time-ordered UUID (Bun built-in, DB-primary-key friendly) |
-| `nanoid` | Short URL-safe IDs, configurable alphabet / length |
-| `snowflake` | 41+10+12-bit snowflake IDs, monotonic, clock-drift safe |
+| Strategy    | Description                                               |
+| ----------- | --------------------------------------------------------- |
+| `uuidv4`    | Random UUID (Web Crypto)                                  |
+| `uuidv7`    | Time-ordered UUID (Bun built-in, DB-primary-key friendly) |
+| `nanoid`    | Short URL-safe IDs, configurable alphabet / length        |
+| `snowflake` | 41+10+12-bit snowflake IDs, monotonic, clock-drift safe   |
 
 ```ts
 import { createId, createIdGenerator } from '@geektech/backone-utils';

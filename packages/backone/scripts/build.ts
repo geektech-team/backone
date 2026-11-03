@@ -24,10 +24,12 @@ const result = await Bun.build({
   root: './lib',
   target: 'bun',
   format: 'esm',
+  splitting: true,
   sourcemap: 'linked',
   minify,
   naming: {
     entry: '[dir]/[name].js',
+    chunk: 'chunks/[name]-[hash].js',
   },
 });
 

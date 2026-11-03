@@ -1,62 +1,129 @@
 import type { Context } from '../context';
 import type { Handler, Next, RouteMethod } from '../types';
 
-interface ClassMetadata {
-  prefix?: string;
-  middlewares: Handler[];
+/** Use remains outermost; system policies execute in these stages. */
+export type PolicyPhase =
+  'timeout' | 'authorize' | 'rateLimit' | 'validate' | 'response' | 'cache';
+
+export interface SystemPolicy {
+  phase: PolicyPhase;
+  handler: Handler;
+  httpOnly?: boolean;
 }
 
-interface MethodMetadata {
+export type WebSocketEvent = 'open' | 'message' | 'close' | 'drain';
+
+export interface MethodMetadata {
   routes: { method: RouteMethod; path: string }[];
   middlewares: Handler[];
+  policies: SystemPolicy[];
+  events: WebSocketEvent[];
 }
 
-const classes = new WeakMap<object, ClassMetadata>();
-const methods = new WeakMap<object, MethodMetadata>();
+export interface ModuleDefinition {
+  readonly prefix: string;
+  readonly imports: (instance: object) => readonly object[];
+  readonly controllers: (instance: object) => readonly object[];
+  readonly gateways: (instance: object) => readonly object[];
+}
 
-export function classMetadata(target: object): ClassMetadata {
-  let metadata = classes.get(target);
+export interface ClassMetadata {
+  module?: ModuleDefinition;
+  prefix?: string;
+  webSocket?: string;
+  middlewares: Handler[];
+  policies: SystemPolicy[];
+  methods: Map<PropertyKey, MethodMetadata>;
+}
+
+type MethodContext = Pick<
+  ClassMethodDecoratorContext,
+  'kind' | 'name' | 'static' | 'private' | 'metadata'
+>;
+type ClassContext = Pick<ClassDecoratorContext, 'kind' | 'metadata'>;
+type SystemContext = MethodContext | ClassContext;
+export type SystemDecorator = (target: object, context: SystemContext) => void;
+
+// TypeScript-emitted standard metadata needs this symbol before class evaluation.
+const symbols = Symbol as SymbolConstructor & { metadata?: symbol };
+if (symbols.metadata === undefined) {
+  Object.defineProperty(Symbol, 'metadata', {
+    value: Symbol.for('Symbol.metadata'),
+    configurable: true,
+  });
+}
+const metadataSymbol = symbols.metadata as symbol;
+const definitions = new WeakMap<object, ClassMetadata>();
+
+function definition(context: SystemContext): ClassMetadata {
+  if (context?.metadata === undefined) {
+    throw new Error(
+      'BackOne requires standard decorators with metadata (TypeScript >=5.2)'
+    );
+  }
+  let metadata = definitions.get(context.metadata);
   if (metadata === undefined) {
-    metadata = { middlewares: [] };
-    classes.set(target, metadata);
+    metadata = { middlewares: [], policies: [], methods: new Map() };
+    definitions.set(context.metadata, metadata);
   }
   return metadata;
 }
 
-export function methodMetadata(target: object): MethodMetadata {
-  let metadata = methods.get(target);
-  if (metadata === undefined) {
-    metadata = { routes: [], middlewares: [] };
-    methods.set(target, metadata);
-  }
-  return metadata;
+function assertTarget(target: object): void {
+  if (typeof target !== 'function')
+    throw new Error('Decorators require a class or method');
 }
 
-export const findClassMetadata = (target: object) => classes.get(target);
-export const findMethodMetadata = (target: object) => methods.get(target);
-
-/** 仅支持标准装饰器的公开实例方法。 */
-function assertInstanceMethod(
-  context: Pick<ClassMethodDecoratorContext, 'kind' | 'static' | 'private'>
-): void {
-  if (context?.kind !== 'method') {
+export function classMetadata(
+  target: object,
+  context: ClassContext
+): ClassMetadata {
+  if (context?.kind !== 'class')
     throw new Error('BackOne requires standard decorators');
-  }
+  assertTarget(target);
+  return definition(context);
+}
+
+export function methodMetadata(
+  target: object,
+  context: MethodContext
+): MethodMetadata {
+  if (context?.kind !== 'method')
+    throw new Error('BackOne requires standard decorators');
   if (context.static || context.private) {
     throw new Error('Route decorators require a public instance method');
   }
+  assertTarget(target);
+  const owner = definition(context);
+  let metadata = owner.methods.get(context.name);
+  if (metadata === undefined) {
+    metadata = { routes: [], middlewares: [], policies: [], events: [] };
+    owner.methods.set(context.name, metadata);
+  }
+  return metadata;
 }
 
-/** 声明路由前缀；派生类需要自己的 @Controller 声明。 */
+export function findClassMetadata(target: object): ClassMetadata | undefined {
+  const token: unknown = Object.getOwnPropertyDescriptor(
+    target,
+    metadataSymbol
+  )?.value;
+  return typeof token === 'object' && token !== null
+    ? definitions.get(token)
+    : undefined;
+}
+
+function member(target: object, context: SystemContext) {
+  return context?.kind === 'class'
+    ? classMetadata(target, context)
+    : methodMetadata(target, context as MethodContext);
+}
+
 export function Controller(prefix = '') {
-  return (target: object, context: ClassDecoratorContext): void => {
-    if (context?.kind !== 'class') {
-      throw new Error('BackOne requires standard decorators');
-    }
-    const metadata = classMetadata(target);
-    if (metadata.prefix !== undefined) {
+  return (target: object, context: ClassContext): void => {
+    const metadata = classMetadata(target, context);
+    if (metadata.prefix !== undefined)
       throw new Error('A class may only declare @Controller once');
-    }
     metadata.prefix = prefix;
   };
 }
@@ -67,7 +134,6 @@ type RouteHandler<This, P extends Record<string, string>> = (
   next: Next
 ) => unknown;
 
-/** 保留业务方法的 this、路径参数和返回类型，不包装方法。 */
 export type RouteDecorator = <This, P extends Record<string, string>>(
   target: RouteHandler<This, P>,
   context: ClassMethodDecoratorContext<This, RouteHandler<This, P>>
@@ -76,8 +142,7 @@ export type RouteDecorator = <This, P extends Record<string, string>>(
 function route(method: RouteMethod): (path?: string) => RouteDecorator {
   return (path = '') =>
     (target, context) => {
-      assertInstanceMethod(context);
-      methodMetadata(target).routes.unshift({ method, path });
+      methodMetadata(target, context).routes.unshift({ method, path });
     };
 }
 
@@ -90,20 +155,19 @@ export const Options = route('OPTIONS');
 export const Head = route('HEAD');
 export const All = route('ALL');
 
-/** 类及方法局部中间件，按从上到下、从左到右的书写顺序执行。 */
-export function Use(...middlewares: Handler[]) {
+/** Written order is retained for ordinary Use middleware. */
+export function Use(...middlewares: Handler[]): SystemDecorator {
   if (middlewares.some((middleware) => typeof middleware !== 'function')) {
     throw new Error('@Use requires middleware functions');
   }
-  return (
-    target: object,
-    context: ClassDecoratorContext | ClassMethodDecoratorContext
-  ): void => {
-    if (context.kind === 'class') {
-      classMetadata(target).middlewares.unshift(...middlewares);
-    } else {
-      assertInstanceMethod(context);
-      methodMetadata(target).middlewares.unshift(...middlewares);
-    }
+  return (target, context) => {
+    member(target, context).middlewares.unshift(...middlewares);
+  };
+}
+
+/** System decorators declare policies instead of replacing business functions. */
+export function policyDecorator(policy: SystemPolicy): SystemDecorator {
+  return (target, context) => {
+    member(target, context).policies.unshift(policy);
   };
 }

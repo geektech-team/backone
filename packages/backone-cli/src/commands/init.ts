@@ -7,7 +7,6 @@ import { existsSync, lstatSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as readline from 'node:readline';
 import { TEMPLATES, TEMPLATE_DESCRIPTIONS } from '../templates';
-import { controllerRestTemplate } from '../controller-template';
 import type { InitOptions, InitResult, TemplateName } from '../types';
 
 /** 创建项目并返回结果 */
@@ -19,26 +18,25 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
     throw new Error(`Project path is not a directory: ${projectPath}`);
   }
 
-  const style = options.style ?? 'functional';
-  if (style !== 'functional' && style !== 'controller') {
+  const style: string = options.style ?? 'controller';
+  if (style === 'functional') {
+    throw new Error(
+      'Functional scaffolding has been replaced by class-based templates; omit --style or use --style controller'
+    );
+  }
+  if (style !== 'controller') {
     throw new Error(`Unknown project style: ${style}`);
   }
   const template =
     options.template ??
-    (style === 'controller' ? 'rest-api' : await promptTemplate());
+    (options.style === 'controller' ? 'rest-api' : await promptTemplate());
   if (!Object.prototype.hasOwnProperty.call(TEMPLATES, template)) {
     throw new Error(`Unknown template: ${template}`);
-  }
-  if (style === 'controller' && template !== 'rest-api') {
-    throw new Error('Controller style requires the rest-api template');
   }
 
   // 写入模板文件
   await mkdir(projectPath, { recursive: true });
-  const files =
-    style === 'controller'
-      ? controllerRestTemplate(options.name)
-      : TEMPLATES[template](options.name);
+  const files = TEMPLATES[template](options.name);
   for (const file of files) {
     const filePath = join(projectPath, file.path);
     await mkdir(join(filePath, '..'), { recursive: true });

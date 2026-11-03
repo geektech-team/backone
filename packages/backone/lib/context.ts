@@ -10,6 +10,13 @@ const JSON_TYPE = 'application/json; charset=utf-8';
 const TEXT_TYPE = 'text/plain; charset=utf-8';
 const HTML_TYPE = 'text/html; charset=utf-8';
 
+const statusVersions = new WeakMap<Context, number>();
+
+/** @internal Distinguish an explicit assignment from an untouched default. */
+export function getStatusVersion(ctx: Context): number {
+  return statusVersions.get(ctx) ?? 0;
+}
+
 /** 响应体类型（标准 Web 类型子集，避免依赖 DOM lib） */
 type ResponseBody = string | Blob | ReadableStream | URLSearchParams;
 
@@ -89,6 +96,7 @@ export class Context {
 
   set status(value: number) {
     this.#status = value;
+    statusVersions.set(this, getStatusVersion(this) + 1);
   }
 
   /** 读取请求头 */

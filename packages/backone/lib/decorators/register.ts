@@ -1,6 +1,8 @@
 import type { BackOneServer } from '../server';
 import type { Handler, RouteMethod } from '../types';
-import { findClassMetadata, findMethodMetadata } from './metadata';
+import { findClassMetadata } from './metadata';
+import type { PolicyPhase, SystemPolicy } from './metadata';
+import { setRouteRuntime } from './runtime';
 
 /** 本次注册的路由描述；path 包含 app 的当前前缀。 */
 export interface ControllerRoute {
@@ -23,6 +25,24 @@ interface Registration {
 }
 
 const registered = new WeakMap<BackOneServer, Registration>();
+
+const POLICY_PHASES: PolicyPhase[] = [
+  'timeout',
+  'authorize',
+  'rateLimit',
+  'validate',
+  'response',
+  'cache',
+];
+
+export function compilePolicies(policies: readonly SystemPolicy[]): Handler[] {
+  return POLICY_PHASES.flatMap((phase) => {
+    const matching = policies.filter((policy) => policy.phase === phase);
+    const selected =
+      phase === 'timeout' || phase === 'cache' ? matching.slice(-1) : matching;
+    return selected.map((policy) => policy.handler);
+  });
+}
 
 function joinPaths(...paths: string[]): string {
   const segments = paths.flatMap((path) => {
@@ -47,7 +67,11 @@ function routeKey(method: RouteMethod, path: string): string {
     .join('/')}`;
 }
 
-function collect(instance: object, appPrefix: string): PendingRoute[] {
+function collect(
+  instance: object,
+  appPrefix: string,
+  prefix = ''
+): PendingRoute[] {
   const prototype: object | null = Object.getPrototypeOf(instance);
   const constructor: unknown = prototype
     ? Object.getOwnPropertyDescriptor(prototype, 'constructor')?.value
@@ -69,6 +93,7 @@ function collect(instance: object, appPrefix: string): PendingRoute[] {
     prototypes.push(current);
   }
   const middlewares: Handler[] = [];
+  const policies: SystemPolicy[] = [];
   for (const current of [...prototypes].reverse()) {
     const owner: unknown = Object.getOwnPropertyDescriptor(
       current,
@@ -76,12 +101,21 @@ function collect(instance: object, appPrefix: string): PendingRoute[] {
     )?.value;
     if (typeof owner === 'function') {
       middlewares.push(...(findClassMetadata(owner)?.middlewares ?? []));
+      policies.push(...(findClassMetadata(owner)?.policies ?? []));
     }
   }
 
   const routes: PendingRoute[] = [];
   const seen = new Set<PropertyKey>();
   for (const current of prototypes) {
+    const owner: unknown = Object.getOwnPropertyDescriptor(
+      current,
+      'constructor'
+    )?.value;
+    const declarations =
+      typeof owner === 'function'
+        ? findClassMetadata(owner)?.methods
+        : undefined;
     for (const name of Reflect.ownKeys(current)) {
       if (name === 'constructor' || seen.has(name)) continue;
       seen.add(name);
@@ -90,14 +124,14 @@ function collect(instance: object, appPrefix: string): PendingRoute[] {
         name
       )?.value;
       if (typeof value !== 'function') continue;
-      const method = findMethodMetadata(value);
+      const method = declarations?.get(name);
       if (method === undefined || method.routes.length === 0) continue;
       const own = Object.getOwnPropertyDescriptor(instance, name);
       const resolved: unknown = own === undefined ? value : own.value;
       if (typeof resolved !== 'function') continue;
       const handler = (resolved as Handler).bind(instance);
       for (const route of method.routes) {
-        const relativePath = joinPaths(metadata.prefix, route.path);
+        const relativePath = joinPaths(prefix, metadata.prefix, route.path);
         const path = joinPaths(appPrefix, relativePath);
         routes.push({
           description: Object.freeze({
@@ -108,7 +142,12 @@ function collect(instance: object, appPrefix: string): PendingRoute[] {
             handler: String(name),
           }),
           relativePath,
-          handlers: [...middlewares, ...method.middlewares, handler],
+          handlers: [
+            ...middlewares,
+            ...method.middlewares,
+            ...compilePolicies([...policies, ...method.policies]),
+            handler,
+          ],
           key: routeKey(route.method, path),
         });
       }
@@ -121,15 +160,22 @@ function collect(instance: object, appPrefix: string): PendingRoute[] {
  * 显式注册 Controller 实例。先校验整批声明，再写入现有路由表。
  * 重复检测覆盖本入口在同一 app 中注册的路由。
  */
-export function registerControllers(
+export interface ControllerBinding {
+  readonly instance: object;
+  /** Relative to the application's captured prefix. */
+  readonly prefix?: string;
+}
+
+/** Internal two-phase registration shared by direct and module registration. */
+export function prepareControllers(
   app: BackOneServer,
-  controllers: readonly object[]
-): readonly ControllerRoute[] {
+  bindings: readonly ControllerBinding[]
+): () => readonly ControllerRoute[] {
   const previous = registered.get(app);
   const keys = new Set(previous?.keys);
   const parameters = new Map(previous?.parameters);
-  const pending = controllers.flatMap((controller) =>
-    collect(controller, app.prefix)
+  const pending = bindings.flatMap(({ instance, prefix }) =>
+    collect(instance, app.prefix, prefix)
   );
   for (const route of pending) {
     if (keys.has(route.key)) {
@@ -153,9 +199,32 @@ export function registerControllers(
       parameters.set(location, segment);
     }
   }
-  for (const route of pending) {
-    app.add(route.description.method, route.relativePath, route.handlers);
-  }
-  registered.set(app, { keys, parameters });
-  return Object.freeze(pending.map((route) => route.description));
+  return () => {
+    for (const route of pending) {
+      app.add(route.description.method, route.relativePath, [
+        (ctx, next) => {
+          setRouteRuntime(
+            ctx,
+            app,
+            route.description.method,
+            route.description.path
+          );
+          return next();
+        },
+        ...route.handlers,
+      ]);
+    }
+    registered.set(app, { keys, parameters });
+    return Object.freeze(pending.map((route) => route.description));
+  };
+}
+
+export function registerControllers(
+  app: BackOneServer,
+  controllers: readonly object[]
+): readonly ControllerRoute[] {
+  return prepareControllers(
+    app,
+    controllers.map((instance) => ({ instance }))
+  )();
 }

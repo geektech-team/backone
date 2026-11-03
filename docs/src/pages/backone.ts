@@ -12,6 +12,7 @@ import {
   hr,
 } from '../components';
 import type { PageContext } from '../content';
+import { minimalClassExample } from '../examples';
 
 /* ------------------------------------------------------------------ */
 /* 概览                                                                 */
@@ -20,7 +21,7 @@ import type { PageContext } from '../content';
 export function renderBackoneOverview(ctx: PageContext): VNode | VNode[] {
   return [
     p([
-      'BackOne 是基于 Bun 的轻量级纯 TypeScript 服务端框架，零运行时依赖，提供路由、中间件、上下文、静态文件与 WebSocket 服务。它把服务端开发保持在 TypeScript 的一个语言系统里：公共 API 只依赖标准 Web 类型（',
+      'BackOne 是基于 Bun 的轻量级纯 TypeScript 服务端框架，零运行时依赖，推荐类路由、服务和 Repository，以 Module 组织业务并由 Application 显式组装对象，提供路由、中间件、上下文、静态文件与 WebSocket 服务。它把服务端开发保持在 TypeScript 的一个语言系统里：公共 API 只依赖标准 Web 类型（',
       inline('Request'),
       ' / ',
       inline('Response'),
@@ -62,20 +63,11 @@ export function renderBackoneOverview(ctx: PageContext): VNode | VNode[] {
     h2('安装'),
     codeblock('bun add @geektech/backone'),
     p(['要求 Bun ', inline('>= 1.3.0'), '。']),
-    h2('最小示例'),
-    codeblock(
-      [
-        "import { createServer } from '@geektech/backone';",
-        '',
-        'const app = createServer({ port: 3000, development: true });',
-        '',
-        'app.useLogger();',
-        "app.get('/hello/:name', (ctx) => `hello, ${ctx.params.name}`);",
-        '',
-        'const port = await app.listen();',
-        'console.log(`Server running at http://127.0.0.1:${port}`);',
-      ].join('\n')
+    h2('类应用示例'),
+    p(
+      '推荐标准装饰器，要求 Bun >=1.3.10、TypeScript >=5.2。函数式 API 继续兼容。'
     ),
+    codeblock(minimalClassExample),
     h2('包内模块'),
     table(
       ['模块', '说明'],
@@ -134,124 +126,48 @@ export function renderBackoneOverview(ctx: PageContext): VNode | VNode[] {
 
 export function renderBackoneQuickstart(ctx: PageContext): VNode | VNode[] {
   return [
-    p([
-      '本页带你从零跑起第一个 BackOne 服务，并走一遍最常用的三个能力：路由、中间件与静态文件。',
-    ]),
+    p(
+      '本页使用类创建路由，由 Application 管理组装和服务生命周期。业务项目推荐 Module → Controller → Service → Repository；最小应用只保留实际需要的对象。'
+    ),
     h2('创建项目'),
-    p([
-      '用 CLI 脚手架直接生成（需先安装 ',
-      h('a', { href: ctx.href('/cli') }, ['@geektech/backone-cli']),
-      '），或者手动创建目录后安装框架：',
-    ]),
     codeblock(
-      [
-        'mkdir my-app && cd my-app',
-        'bun init -y',
-        'bun add @geektech/backone',
-      ].join('\n')
+      'bunx @geektech/backone-cli init my-app --template minimal\ncd my-app\nbun run typecheck\nbun run dev',
+      'sh'
+    ),
+    p(
+      '模板要求 Bun >=1.3.10、TypeScript >=5.2，使用标准装饰器。保持 experimentalDecorators 和 emitDecoratorMetadata 关闭。'
     ),
     h2('第一个服务'),
-    p(['新建 ', inline('src/index.ts'), '，写入：']),
-    codeblock(
-      [
-        "import { createServer } from '@geektech/backone';",
-        '',
-        'const app = createServer({ port: 3000, development: true });',
-        '',
-        "app.get('/', () => 'Hello, BackOne!');",
-        '',
-        'const port = await app.listen();',
-        'console.log(`Server running at http://127.0.0.1:${port}`);',
-      ].join('\n')
+    p(
+      '手动项目安装 @geektech/backone 后，也可把以下简化示例放到 src/index.ts，用 bun src/index.ts 运行。'
     ),
-    p(['在 ', inline('package.json'), ' 中配置脚本后运行：']),
-    codeblock(
-      [
-        '"scripts": {',
-        '  "dev": "bun --watch src/index.ts",',
-        '  "start": "bun src/index.ts"',
-        '}',
-      ].join('\n'),
-      'json'
-    ),
-    codeblock('bun run dev'),
+    codeblock(minimalClassExample),
     p([
       '访问 ',
       inline('http://127.0.0.1:3000'),
-      ' 应看到 ',
-      inline('Hello, BackOne!'),
-      '。',
+      ' 返回 Hello, BackOne!；访问 /hello/Alice 返回 hello, Alice。',
     ]),
-    h2('加一条带参数的路由'),
-    codeblock(
-      [
-        "app.get('/hello/:name', (ctx) => `hello, ${ctx.params.name}`);",
-        "app.get('/users/:id', async (ctx) => {",
-        '  const user = await fetchUser(ctx.params.id);',
-        '  return ctx.json(user); // 显式 JSON 响应',
-        '});',
-      ].join('\n')
+    h2('组装中间件和静态文件'),
+    p(
+      '在 Application 构造函数中为 this.server 注册中间件和静态资源，业务接口交给 Controller 类。'
     ),
-    h2('挂上内置中间件'),
-    p(['中间件按注册顺序组成洋葱链路，内置中间件一行启用：']),
     codeblock(
-      [
-        'app.useLogger();          // 请求日志',
-        'app.useCors();            // 跨域',
-        'app.useGzip();            // gzip 压缩',
-        'app.useHelmet();          // 安全响应头',
-        'app.useTimeout({ ms: 5000 }); // 5s 超时 → 504',
-        '',
-        '// 自定义中间件：记录请求耗时并注入响应头',
-        'app.use(async (ctx, next) => {',
-        '  const start = performance.now();',
-        '  const response = await next();',
-        '  if (response instanceof Response) {',
-        '    response.headers.set("x-server-timing", `${(performance.now() - start).toFixed(2)}ms`);',
-        '  }',
-        '  return response;',
-        '});',
-      ].join('\n')
+      "this.server.useCors();\nthis.server.useGzip();\nthis.server.useHelmet();\nthis.server.useTimeout({ ms: 5000 });\nthis.server.serveStatic('/static', './public');"
     ),
-    h2('服务静态文件'),
-    codeblock(
-      [
-        '// 将 ./public 目录挂到 /static 前缀下，Bun.file 零拷贝流式发送',
-        "app.serveStatic('/static', './public', {",
-        "  cacheControl: 'public, max-age=3600',",
-        "  index: 'index.html',",
-        '});',
-      ].join('\n')
-    ),
-    h2('错误处理'),
-    p(['抛出 ', inline('HttpError'), ' 即可返回对应状态码的 JSON 错误响应：']),
-    codeblock(
-      [
-        "import { HttpError } from '@geektech/backone';",
-        '',
-        "app.get('/items/:id', (ctx) => {",
-        '  const item = items.find((i) => i.id === Number(ctx.params.id));',
-        "  if (!item) throw new HttpError(404, 'Item not found');",
-        '  return item; // 对象自动按 JSON 返回',
-        '});',
-      ].join('\n')
-    ),
-    callout(
-      '提示',
-      p([
-        '返回值的序列化规则：Response 直接透传；string / number / boolean 按文本；object 按 JSON；undefined / null 返回 204。详见',
-        h('a', { href: ctx.href('/backone/context') }, ['上下文与响应']),
-        '。',
-      ]),
-      'tip'
+    h2('REST 与数据库'),
+    codeblock('backone init my-api --template rest-api', 'sh'),
+    p(
+      'REST 模板的 modules/users 包含 UsersModule、SQLite、UsersRepository、UsersService 和 UsersController。Application 使用 registerModules 挂载模块。POST/PUT 通过 @Validate 校验 JSON，@Status 设置 201/204，领域错误由 Controller 转换为 HTTP 状态。Application.initialize 准备资源；start 自动初始化并监听；stop 关闭资源。'
     ),
     h2('下一步'),
     p([
-      '继续阅读 ',
+      '阅读 ',
+      h('a', { href: ctx.href('/backone/architecture') }, ['对象优先开发']),
+      ' 了解对象职责、构造注入、事务和测试；',
+      h('a', { href: ctx.href('/backone/decorators') }, ['系统装饰器']),
+      ' 提供 Controller/Gateway 的完整 API。底层函数式路由仍可使用，参见 ',
       h('a', { href: ctx.href('/backone/server') }, ['服务端与路由']),
-      '，了解路由组、前缀与生命周期；或直接看 ',
-      h('a', { href: ctx.href('/utils') }, ['backone-utils 工具包']),
-      ' 集成数据库与配置。',
+      '。',
     ]),
   ];
 }
